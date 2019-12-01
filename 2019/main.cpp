@@ -1,9 +1,10 @@
 #include <iostream>
 using namespace std;
 
-int calculateMass(int const& moduleMass)
+long calculateMass(long const& moduleMass)
 {
-    return moduleMass/3 - 2;
+    long result = moduleMass/3 - 2;
+    return result < 0 ? 0 : result;
 }
 
 int main()
@@ -12,9 +13,17 @@ int main()
     long fuel = 0;
     for(int input = 0; input < N; ++input)
     {
-        int mass = 0;
+        long mass = 0;
         cin >> mass;
-        fuel += calculateMass(mass);
+        long additionalFuel = calculateMass(mass);
+        // initial value
+        fuel += additionalFuel;
+        while(additionalFuel > 0)
+        {
+            // calcualte fuel needed for fuel
+            additionalFuel = calculateMass(additionalFuel);
+            fuel += additionalFuel;
+        }
     }
     cout << fuel << endl;
     return 0;
