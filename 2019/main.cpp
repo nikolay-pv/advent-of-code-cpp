@@ -2,24 +2,32 @@
 #include <vector>
 using namespace std;
 
-enum Opcode : long
+enum OpcodeInstruction : long
 {
     sum = 1,
     multiply = 2,
     halt = 99
 };
 
-void performCalculation(std::vector<long>::iterator it, std::vector<long>& vinput)
+enum ParamAddress : int
 {
-    const long leftPos = *(it + 1);
-    const long rightPos = *(it + 2);
-    const long destPos = *(it + 3);
-    switch(*it) {
-    case Opcode::sum:
-        vinput[destPos] = vinput[leftPos] + vinput[rightPos];
+    first = 1,
+    second = 2,
+    third = 3
+};
+
+void performCalculation(std::vector<long>::iterator begginingOfInstruction,
+                        std::vector<long>& computerMemory)
+{
+    const long leftParam = *(begginingOfInstruction + ParamAddress::first);
+    const long rightParam = *(begginingOfInstruction + ParamAddress::second);
+    const long destParam = *(begginingOfInstruction + ParamAddress::third);
+    switch(*begginingOfInstruction) {
+    case OpcodeInstruction::sum:
+        computerMemory[destParam] = computerMemory[leftParam] + computerMemory[rightParam];
         break;
-    case Opcode::multiply:
-        vinput[destPos] = vinput[leftPos] * vinput[rightPos];
+    case OpcodeInstruction::multiply:
+        computerMemory[destParam] = computerMemory[leftParam] * computerMemory[rightParam];
         break;
     default :
         std::cerr << "Ups" << std::endl;
@@ -32,24 +40,25 @@ int main()
     int N;
     cin >> N;
     long fuel = 0;
-    std::vector<long> vinput(N);
+    std::vector<long> computerMemory(N);
     for(int input = 0; input != N; ++input)
-        cin >> vinput[input];
-    auto it = vinput.begin();
-    while(*it != Opcode::halt)
+        cin >> computerMemory[input];
+    auto instrctionPointer = computerMemory.begin();
+    const int numOfValuesInInstruction = 4;
+    while(*instrctionPointer != OpcodeInstruction::halt)
     {
-        if (*it != Opcode::sum && *it != Opcode::multiply)
+        if (*instrctionPointer != OpcodeInstruction::sum && *instrctionPointer != OpcodeInstruction::multiply)
         {
             cout << "Houston, we have a problem!" << endl;
             break;
         }
-        performCalculation(it, vinput);
-        it += 4;
+        performCalculation(instrctionPointer, computerMemory);
+        instrctionPointer += numOfValuesInInstruction;
     }
     cout << "The result of the programm:" << endl;
-    for_each(vinput.cbegin(), vinput.cend(), [](const auto& v){ cout << v << ", ";});
+    for_each(computerMemory.cbegin(), computerMemory.cend(), [](const auto& v){ cout << v << ", ";});
     cout << endl << "The first position:" << endl;
-    cout << vinput[0] << endl;
+    cout << computerMemory[0] << endl;
     return 0;
 }
 
