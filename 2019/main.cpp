@@ -35,14 +35,10 @@ void performCalculation(std::vector<long>::iterator begginingOfInstruction,
     }
 }
 
-int main()
+void performSimulation(std::vector<long> computerMemory, long noun, long verb)
 {
-    int N;
-    cin >> N;
-    long fuel = 0;
-    std::vector<long> computerMemory(N);
-    for(int input = 0; input != N; ++input)
-        cin >> computerMemory[input];
+    computerMemory[1] = noun;
+    computerMemory[2] = verb;
     auto instrctionPointer = computerMemory.begin();
     const int numOfValuesInInstruction = 4;
     while(*instrctionPointer != OpcodeInstruction::halt)
@@ -59,6 +55,18 @@ int main()
     for_each(computerMemory.cbegin(), computerMemory.cend(), [](const auto& v){ cout << v << ", ";});
     cout << endl << "The first position:" << endl;
     cout << computerMemory[0] << endl;
+}
+
+int main()
+{
+    int N;
+    cin >> N;
+    long fuel = 0;
+    std::vector<long> computerMemory(N);
+    for(int input = 0; input != N; ++input)
+        cin >> computerMemory[input];
+    long noun = 12, verb = 2;
+    performSimulation(computerMemory, noun, verb);
     return 0;
 }
 
