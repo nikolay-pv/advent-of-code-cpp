@@ -1,31 +1,55 @@
 #include <iostream>
+#include <vector>
 using namespace std;
 
-long calculateMass(long const& moduleMass)
+enum Opcode : long
 {
-    long result = moduleMass/3 - 2;
-    return result < 0 ? 0 : result;
+    sum = 1,
+    multiply = 2,
+    halt = 99
+};
+
+void performCalculation(std::vector<long>::iterator it, std::vector<long>& vinput)
+{
+    const long leftPos = *(it + 1);
+    const long rightPos = *(it + 2);
+    const long destPos = *(it + 3);
+    switch(*it) {
+    case Opcode::sum:
+        vinput[destPos] = vinput[leftPos] + vinput[rightPos];
+        break;
+    case Opcode::multiply:
+        vinput[destPos] = vinput[leftPos] * vinput[rightPos];
+        break;
+    default :
+        std::cerr << "Ups" << std::endl;
+        break;
+    }
 }
 
 int main()
 {
-    const int N = 100;
+    int N;
+    cin >> N;
     long fuel = 0;
-    for(int input = 0; input < N; ++input)
+    std::vector<long> vinput(N);
+    for(int input = 0; input != N; ++input)
+        cin >> vinput[input];
+    auto it = vinput.begin();
+    while(*it != Opcode::halt)
     {
-        long mass = 0;
-        cin >> mass;
-        long additionalFuel = calculateMass(mass);
-        // initial value
-        fuel += additionalFuel;
-        while(additionalFuel > 0)
+        if (*it != Opcode::sum && *it != Opcode::multiply)
         {
-            // calcualte fuel needed for fuel
-            additionalFuel = calculateMass(additionalFuel);
-            fuel += additionalFuel;
+            cout << "Houston, we have a problem!" << endl;
+            break;
         }
+        performCalculation(it, vinput);
+        it += 4;
     }
-    cout << fuel << endl;
+    cout << "The result of the programm:" << endl;
+    for_each(vinput.cbegin(), vinput.cend(), [](const auto& v){ cout << v << ", ";});
+    cout << endl << "The first position:" << endl;
+    cout << vinput[0] << endl;
     return 0;
 }
 
