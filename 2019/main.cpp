@@ -6,16 +6,19 @@
 using namespace std;
 
 
-bool sizeRequirements(std::string const& psswd)
-{
-    return psswd.size() == 6;
-}
-
 bool sameDigitsRequirements(std::string const& psswd)
 {
+
     for(int i = 1; i != psswd.size(); ++i)
-        if (psswd[i] == psswd[i - 1])
-            return true;
+    {
+        if (psswd[i] != psswd[i - 1])
+            continue;
+        if (i - 2 >= 0 && psswd[i] == psswd[i - 2])
+            continue;
+        if (i + 1 < psswd.size() && psswd[i] == psswd[i + 1])
+            continue;
+        return true;
+    }
     return false;
 }
 
@@ -29,9 +32,7 @@ bool increasingDigitsRequirements(std::string const& psswd)
 
 bool passwordValidation(std::string const& psswd)
 {
-    // 6 digits;
-    return //sizeRequirements(psswd)
-        /*&&*/ sameDigitsRequirements(psswd)
+    return sameDigitsRequirements(psswd)
         && increasingDigitsRequirements(psswd);
 }
 
@@ -42,6 +43,7 @@ int main()
     int M;
     cin >> M;
 
+    // size requirement
     const int max_pass = 999999;
     if (N > max_pass)
         N = max_pass;
