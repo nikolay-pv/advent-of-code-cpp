@@ -21,7 +21,7 @@ pll operator+(pll lhs, const pll& rhs)
     return lhs;
 }
 
-pll processCommand(set<pll>& result,
+pll processCommand(vector<pll>& result,
         pll start,
         char direction, int count)
 {
@@ -44,15 +44,15 @@ pll processCommand(set<pll>& result,
     while(count > 0)
     {
         start = start + increment;
-        result.insert(start);
+        result.push_back(start);
         --count;
     }
     return start;
 }
 
-set<pll> processInput(std::string const& input)
+vector<pll> processInput(std::string const& input)
 {
-    set<pll> result{};
+    vector<pll> result{};
     stringstream ss{input};
     char separator=',';
     pll last{0, 0};
@@ -76,26 +76,35 @@ int main()
 
     std::string input{};
     cin >> input;
-    set<pll> path1{processInput(input)};
+    vector<pll> path1{processInput(input)};
     cin >> input;
-    set<pll> path2{processInput(input)};
+    vector<pll> path2{processInput(input)};
 
     vector<pll> intersections{};
-    set_intersection(path1.begin(), path1.end(),
-                     path2.begin(), path2.end(),
-                     back_inserter(intersections));
+    {
+        set<pll> spath1{path1.begin(), path1.end()};
+        set<pll> spath2{path2.begin(), path2.end()};
+        set_intersection(spath1.begin(), spath1.end(),
+                         spath2.begin(), spath2.end(),
+                         back_inserter(intersections));
+    }
 
-    vector<long> distances{};
+    vector<long> steps{};
     transform(intersections.cbegin(), intersections.cend(),
-              back_inserter(distances),
-              [](const pll& point) -> long
-              { return abs(point.first) + abs(point.second); } );
+              back_inserter(steps),
+              [&](const pll& point) -> long
+              {
+              return distance(path1.cbegin(), find(path1.cbegin(), path1.cend(), point))
+                   + distance(path2.cbegin(), find(path2.cbegin(), path2.cend(), point))
+                   // 0 based count
+                   + 2;
+               });
 
-    std::sort(distances.begin(), distances.end());
-    cout << "All distances are: " << endl;
-    for_each(distances.cbegin(), distances.cend(),
+    std::sort(steps.begin(), steps.end());
+    cout << "All steps are: " << endl;
+    for_each(steps.cbegin(), steps.cend(),
              [](const auto& el){ cout << el << ", "; });
-    cout << endl << "Answer is " << distances[0] << endl;
+    cout << endl << "Answer is " << steps[0] << endl;
     return 0;
 }
 
