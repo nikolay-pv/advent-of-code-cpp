@@ -34,6 +34,7 @@ class CmdExecutor
 {
 public:
     virtual void passValue(long& val) { return; };
+    virtual void setModes(long val) { return; };
     virtual long paramsLength() = 0;
     virtual void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) = 0;
@@ -53,12 +54,13 @@ struct IntCodeComputer
     std::vector<long>::iterator instructionPos{};
 
     long cache{};
+    long parameterMode{};
 
     void setMemory() { instructionPos = memory.begin(); };
 
     long getMemoryHead() const { return memory[0]; };
     long runningLoop(long input);
-    optional<OpcodeInstruction> getCurrentOpcode() const;
+    optional<OpcodeInstruction> getCurrentOpcode();
 
     void printMemory() const;
 };
@@ -86,6 +88,7 @@ long IntCodeComputer::runningLoop(long input)
         if (executor == instructionSet.end())
             break;
         executor->second->passValue(cache);
+        executor->second->setModes(parameterMode);
         executor->second->execute(instructionPos, memory);
         //executor->second->passValue(cache);
         offset = executor->second->paramsLength();
@@ -97,51 +100,113 @@ long IntCodeComputer::runningLoop(long input)
     return -1;
 }
 
-optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode() const
+optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
 {
-    const long code = *instructionPos;
+    string tmp = to_string(*instructionPos);
+    //cerr << "Opcode candidate " << tmp << endl;
+    parameterMode = 0;
+    // everything but last 2 digits
+    if (tmp.length() > 2)
+    {
+        long counter = 1;
+        auto modes = tmp.substr(0, tmp.length() - 2);
+        //cerr << "Modes candidate " << modes << endl;
+        for (auto bit = modes.rbegin(); bit != modes.rend(); ++bit)
+        {
+            if (*bit == '1')
+                parameterMode += counter;
+            counter <<= 1;
+        }
+        //cerr << "Log: setting the mode to " << parameterMode << endl;
+    }
+    // last 2 digits
+    const long code = tmp.length() > 2 ? stol(tmp.substr(tmp.length() - 2, 2)) : *instructionPos;
     return castToOpcode(code);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // CmdExecutors
+
+enum ImmediateMode : long
+{
+    first = 0b01,
+    second = 0b10,
+    third = 0b100
+};
+
 class Sum : public CmdExecutor
 {
-    enum ParamAddress : int
+    long modes = 0;
+    long getLeft(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) const
     {
-        first = 1,
-        second = 2,
-        third = 3
-    };
+        const long offset = 1;
+        const long val =*(begginingOfInstruction + offset);
+        if (modes & ImmediateMode::first)
+            return val;
+        else
+            return computerMemory[val];
+    }
+    long getRight(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) const
+    {
+        const long offset = 2;
+        const long val = *(begginingOfInstruction + offset);
+        if (modes & ImmediateMode::second)
+            return val;
+        else
+            return computerMemory[val];
+    }
 public:
+    void setModes(long val) override { modes = val; };
     long paramsLength() override { return 4; }
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
-        const long leftParam = *(begginingOfInstruction + ParamAddress::first);
-        const long rightParam = *(begginingOfInstruction + ParamAddress::second);
-        const long destParam = *(begginingOfInstruction + ParamAddress::third);
-        computerMemory[destParam] = computerMemory[leftParam] + computerMemory[rightParam];
+        const long lastParam = 3;
+        const long destParam = *(begginingOfInstruction + lastParam);
+        const long leftVal = getLeft(begginingOfInstruction, computerMemory);
+        const long rightVal = getRight(begginingOfInstruction, computerMemory);
+        //cerr << "Mode: " << modes << " [" << destParam << "] = " << leftVal << " + " << rightVal << endl;
+        computerMemory[destParam] = leftVal + rightVal;
     }
 };
 
 class Multiply : public CmdExecutor
 {
-    enum ParamAddress : int
+    long modes = 0;
+    long getLeft(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) const
     {
-        first = 1,
-        second = 2,
-        third = 3
-    };
+        const long offset = 1;
+        const long val = *(begginingOfInstruction + offset);
+        if (modes & ImmediateMode::first)
+            return val;
+        else
+            return computerMemory[val];
+    }
+    long getRight(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) const
+    {
+        const long offset = 2;
+        const long val = *(begginingOfInstruction + offset);
+        if (modes & ImmediateMode::second)
+            return val;
+        else
+            return computerMemory[val];
+    }
 public:
+    void setModes(long val) override { modes = val; };
     long paramsLength() override { return 4; }
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
-        const long leftParam = *(begginingOfInstruction + ParamAddress::first);
-        const long rightParam = *(begginingOfInstruction + ParamAddress::second);
-        const long destParam = *(begginingOfInstruction + ParamAddress::third);
-        computerMemory[destParam] = computerMemory[leftParam] * computerMemory[rightParam];
+        const long lastParam = 3;
+        const long destParam = *(begginingOfInstruction + lastParam);
+        const long leftVal = getLeft(begginingOfInstruction, computerMemory);
+        const long rightVal = getRight(begginingOfInstruction, computerMemory);
+        //cerr << "Mode: " << modes << " [" << destParam << "] = " << leftVal << " * " << rightVal << endl;
+        computerMemory[destParam] = leftVal * rightVal;
     }
 };
 
@@ -156,21 +221,27 @@ public:
     {
         const long dst = *(begginingOfInstruction + 1);
         computerMemory[dst] = inputValue;
+        cout << "Input: " << inputValue << endl;
     }
 };
 
 class Output : public CmdExecutor
 {
+    long modes = 0;
     // prevent modification of the cache
     //optional<long> output = nullopt;
 public:
     //void passValue(long& val) override { if (output != nullopt) val = output.value(); };
+    void setModes(long val) override { modes = val; };
     long paramsLength() override { return 2; }
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
-        const long dst = *(begginingOfInstruction + 1);
-        cout << "Outut: " << computerMemory[dst] << endl;
+        const long offset = 1;
+        long val = *(begginingOfInstruction + offset);
+        if (!(modes & ImmediateMode::first))
+            val = computerMemory[val];
+        cout << "Outut: " << val << endl;
     }
 };
 
@@ -202,8 +273,7 @@ int main()
         cin >> separator;
     }
     computer.setMemory();
-
-    computer.printMemory();
+    //computer.printMemory();
     // register instructions
     computer.instructionSet.insert({OpcodeInstruction::multiply, CmdExecutorPtr{new Multiply()}});
     computer.instructionSet.insert({OpcodeInstruction::sum, CmdExecutorPtr{new Sum()}});
@@ -211,8 +281,8 @@ int main()
     computer.instructionSet.insert({OpcodeInstruction::input, CmdExecutorPtr{new Input()}});
     computer.instructionSet.insert({OpcodeInstruction::output, CmdExecutorPtr{new Output()}});
 
-    const long result = computer.runningLoop(100);
-    computer.printMemory();
+    const long result = computer.runningLoop(1);
+    //computer.printMemory();
     cout << "Return code is " << result << endl;
     return 0;
 }
