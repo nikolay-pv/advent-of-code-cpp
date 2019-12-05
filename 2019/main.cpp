@@ -9,6 +9,8 @@ enum OpcodeInstruction : long
 {
     sum = 1,
     multiply = 2,
+    input = 3,
+    output = 4,
     halt = 99
 };
 
@@ -18,6 +20,8 @@ optional<OpcodeInstruction> castToOpcode(long value)
     case OpcodeInstruction::sum:
     case OpcodeInstruction::multiply:
     case OpcodeInstruction::halt:
+    case OpcodeInstruction::input:
+    case OpcodeInstruction::output:
         break;
     default :
         std::cerr << "Ups" << std::endl;
@@ -29,6 +33,7 @@ optional<OpcodeInstruction> castToOpcode(long value)
 class CmdExecutor
 {
 public:
+    virtual void passValue(long& val) { return; };
     virtual long paramsLength() = 0;
     virtual void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) = 0;
@@ -46,6 +51,8 @@ struct IntCodeComputer
     map<OpcodeInstruction, CmdExecutorPtr> instructionSet{};
     vector<long> memory{};
     std::vector<long>::iterator instructionPos{};
+
+    long cache{};
 
     void setMemory() { instructionPos = memory.begin(); };
 
@@ -67,6 +74,7 @@ void IntCodeComputer::printMemory() const
 
 long IntCodeComputer::runningLoop(long input)
 {
+    cache = input;
     long offset = 0;
     while(!halting)
     {
@@ -77,7 +85,9 @@ long IntCodeComputer::runningLoop(long input)
         auto executor = instructionSet.find(instrCode.value());
         if (executor == instructionSet.end())
             break;
+        executor->second->passValue(cache);
         executor->second->execute(instructionPos, memory);
+        //executor->second->passValue(cache);
         offset = executor->second->paramsLength();
     }
     if (halting)
@@ -135,6 +145,36 @@ public:
     }
 };
 
+class Input : public CmdExecutor
+{
+    long inputValue = 0;
+public:
+    void passValue(long& val) override { inputValue = val; };
+    long paramsLength() override { return 2; }
+    void execute(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) override
+    {
+        const long dst = *(begginingOfInstruction + 1);
+        computerMemory[dst] = inputValue;
+    }
+};
+
+class Output : public CmdExecutor
+{
+    // prevent modification of the cache
+    //optional<long> output = nullopt;
+public:
+    //void passValue(long& val) override { if (output != nullopt) val = output.value(); };
+    long paramsLength() override { return 2; }
+    void execute(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) override
+    {
+        const long dst = *(begginingOfInstruction + 1);
+        cout << "Outut: " << computerMemory[dst] << endl;
+    }
+};
+
+
 class Halt : public CmdExecutor
 {
 public:
@@ -168,8 +208,10 @@ int main()
     computer.instructionSet.insert({OpcodeInstruction::multiply, CmdExecutorPtr{new Multiply()}});
     computer.instructionSet.insert({OpcodeInstruction::sum, CmdExecutorPtr{new Sum()}});
     computer.instructionSet.insert({OpcodeInstruction::halt, CmdExecutorPtr{new Halt()}});
+    computer.instructionSet.insert({OpcodeInstruction::input, CmdExecutorPtr{new Input()}});
+    computer.instructionSet.insert({OpcodeInstruction::output, CmdExecutorPtr{new Output()}});
 
-    const long result = computer.runningLoop(0);
+    const long result = computer.runningLoop(100);
     computer.printMemory();
     cout << "Return code is " << result << endl;
     return 0;
