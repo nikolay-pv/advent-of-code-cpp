@@ -11,6 +11,10 @@ enum OpcodeInstruction : long
     multiply = 2,
     input = 3,
     output = 4,
+    jump_if_true = 5,
+    jump_if_false = 6,
+    less_than = 7,
+    equals = 8,
     halt = 99
 };
 
@@ -22,9 +26,13 @@ optional<OpcodeInstruction> castToOpcode(long value)
     case OpcodeInstruction::halt:
     case OpcodeInstruction::input:
     case OpcodeInstruction::output:
+    case OpcodeInstruction::jump_if_true:
+    case OpcodeInstruction::jump_if_false:
+    case OpcodeInstruction::less_than:
+    case OpcodeInstruction::equals:
         break;
     default :
-        std::cerr << "Ups" << std::endl;
+        cerr << "Ups, got " << value << std::endl;
         return nullopt;
     }
     return static_cast<OpcodeInstruction>(value);
@@ -33,8 +41,9 @@ optional<OpcodeInstruction> castToOpcode(long value)
 class CmdExecutor
 {
 public:
+    long modes = 0;
     virtual void passValue(long& val) { return; };
-    virtual void setModes(long val) { return; };
+    virtual void setModes(long val) { modes = val; };
     virtual long paramsLength() = 0;
     virtual void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) = 0;
@@ -62,16 +71,16 @@ struct IntCodeComputer
     long runningLoop(long input);
     optional<OpcodeInstruction> getCurrentOpcode();
 
-    void printMemory() const;
+    void cerrPrintMemory() const;
 };
 
 bool IntCodeComputer::halting = false;
 
-void IntCodeComputer::printMemory() const
+void IntCodeComputer::cerrPrintMemory() const
 {
-    cout << "The internal memory of the computer:" << endl;
-    for_each(memory.cbegin(), memory.cend(), [](const auto& el){ cout << el << ", ";});
-    cout << endl;
+    cerr << "The internal memory of the computer:" << endl;
+    for_each(memory.cbegin(), memory.cend(), [](const auto& el){ cerr << el << ", ";});
+    cerr << endl;
 }
 
 long IntCodeComputer::runningLoop(long input)
@@ -81,12 +90,14 @@ long IntCodeComputer::runningLoop(long input)
     while(!halting)
     {
         instructionPos += offset;
+        //cerr << "Instruction position is " << (instructionPos - memory.begin()) << endl;
         auto instrCode = getCurrentOpcode();
         if (instrCode == nullopt)
             break;
         auto executor = instructionSet.find(instrCode.value());
         if (executor == instructionSet.end())
             break;
+        //cerrPrintMemory();
         executor->second->passValue(cache);
         executor->second->setModes(parameterMode);
         executor->second->execute(instructionPos, memory);
@@ -127,6 +138,18 @@ optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
 ////////////////////////////////////////////////////////////////////////////////
 // CmdExecutors
 
+long getParam(vector<long>::iterator begginingOfInstruction,
+              vector<long>& computerMemory,
+              long offset,
+              bool isImmediateMode)
+{
+    const long val = *(begginingOfInstruction + offset);
+    if (isImmediateMode)
+        return val;
+    else
+        return computerMemory[val];
+}
+
 enum ImmediateMode : long
 {
     first = 0b01,
@@ -136,77 +159,37 @@ enum ImmediateMode : long
 
 class Sum : public CmdExecutor
 {
-    long modes = 0;
-    long getLeft(vector<long>::iterator begginingOfInstruction,
-                         vector<long>& computerMemory) const
-    {
-        const long offset = 1;
-        const long val =*(begginingOfInstruction + offset);
-        if (modes & ImmediateMode::first)
-            return val;
-        else
-            return computerMemory[val];
-    }
-    long getRight(vector<long>::iterator begginingOfInstruction,
-                         vector<long>& computerMemory) const
-    {
-        const long offset = 2;
-        const long val = *(begginingOfInstruction + offset);
-        if (modes & ImmediateMode::second)
-            return val;
-        else
-            return computerMemory[val];
-    }
 public:
-    void setModes(long val) override { modes = val; };
     long paramsLength() override { return 4; }
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
-        const long lastParam = 3;
-        const long destParam = *(begginingOfInstruction + lastParam);
-        const long leftVal = getLeft(begginingOfInstruction, computerMemory);
-        const long rightVal = getRight(begginingOfInstruction, computerMemory);
-        //cerr << "Mode: " << modes << " [" << destParam << "] = " << leftVal << " + " << rightVal << endl;
-        computerMemory[destParam] = leftVal + rightVal;
+        bool isImmediate = modes & ImmediateMode::first;
+        const long leftVal = getParam(begginingOfInstruction, computerMemory, 1, isImmediate);
+        isImmediate = modes & ImmediateMode::second;
+        const long rightVal = getParam(begginingOfInstruction, computerMemory, 2, isImmediate);
+        // need position!
+        const long dst = getParam(begginingOfInstruction, computerMemory, 3, true);
+        //cerr << "Mode: " << modes << " [" << dst << "] = " << leftVal << " + " << rightVal << endl;
+        computerMemory[dst] = leftVal + rightVal;
     }
 };
 
 class Multiply : public CmdExecutor
 {
-    long modes = 0;
-    long getLeft(vector<long>::iterator begginingOfInstruction,
-                         vector<long>& computerMemory) const
-    {
-        const long offset = 1;
-        const long val = *(begginingOfInstruction + offset);
-        if (modes & ImmediateMode::first)
-            return val;
-        else
-            return computerMemory[val];
-    }
-    long getRight(vector<long>::iterator begginingOfInstruction,
-                         vector<long>& computerMemory) const
-    {
-        const long offset = 2;
-        const long val = *(begginingOfInstruction + offset);
-        if (modes & ImmediateMode::second)
-            return val;
-        else
-            return computerMemory[val];
-    }
 public:
-    void setModes(long val) override { modes = val; };
     long paramsLength() override { return 4; }
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
-        const long lastParam = 3;
-        const long destParam = *(begginingOfInstruction + lastParam);
-        const long leftVal = getLeft(begginingOfInstruction, computerMemory);
-        const long rightVal = getRight(begginingOfInstruction, computerMemory);
-        //cerr << "Mode: " << modes << " [" << destParam << "] = " << leftVal << " * " << rightVal << endl;
-        computerMemory[destParam] = leftVal * rightVal;
+        bool isImmediate = modes & ImmediateMode::first;
+        const long leftVal = getParam(begginingOfInstruction, computerMemory, 1, isImmediate);
+        isImmediate = modes & ImmediateMode::second;
+        const long rightVal = getParam(begginingOfInstruction, computerMemory, 2, isImmediate);
+        // need position!
+        const long dst = getParam(begginingOfInstruction, computerMemory, 3, true);
+        //cerr << "Mode: " << modes << " [" << dst << "] = " << leftVal << " * " << rightVal << endl;
+        computerMemory[dst] = leftVal * rightVal;
     }
 };
 
@@ -227,21 +210,109 @@ public:
 
 class Output : public CmdExecutor
 {
-    long modes = 0;
     // prevent modification of the cache
     //optional<long> output = nullopt;
 public:
     //void passValue(long& val) override { if (output != nullopt) val = output.value(); };
-    void setModes(long val) override { modes = val; };
     long paramsLength() override { return 2; }
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
         const long offset = 1;
-        long val = *(begginingOfInstruction + offset);
-        if (!(modes & ImmediateMode::first))
-            val = computerMemory[val];
+        const bool isImmediate = modes & ImmediateMode::first;
+        const long val = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
         cout << "Outut: " << val << endl;
+    }
+};
+
+class Jump_if_true : public CmdExecutor
+{
+    long dynamicLength = 3;
+public:
+    long paramsLength() override { return dynamicLength; }
+    void execute(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) override
+    {
+        dynamicLength = 3;
+        const long offset = 1;
+        bool isImmediate = modes & ImmediateMode::first;
+        const long val = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+        if (val != 0)
+        {
+            const bool isImmediate = modes & ImmediateMode::second;
+            const long newpointer = getParam(begginingOfInstruction, computerMemory, 2, isImmediate);
+            dynamicLength = newpointer - (begginingOfInstruction - computerMemory.begin());
+            //cerr << "NewPointer " << newpointer << " diff " << (begginingOfInstruction - computerMemory.begin()) << endl;
+        }
+        //cerr << "Mode: " << modes << " [" << dynamicLength << "] = " << val << " != " << 0 << endl;
+    }
+};
+
+class Jump_if_false : public CmdExecutor
+{
+    long dynamicLength = 3;
+public:
+    long paramsLength() override { return dynamicLength; }
+    void execute(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) override
+    {
+        dynamicLength = 3;
+        const long offset = 1;
+        bool isImmediate = modes & ImmediateMode::first;
+        const long val = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+        if (val == 0)
+        {
+            const bool isImmediate = modes & ImmediateMode::second;
+            const long newpointer = getParam(begginingOfInstruction, computerMemory, 2, isImmediate);
+            dynamicLength = newpointer - (begginingOfInstruction - computerMemory.begin());
+        }
+        //cerr << "Mode: " << modes << " [" << dynamicLength << "] = " << val << " == " << 0 << endl;
+    }
+};
+
+class Less_than : public CmdExecutor
+{
+public:
+    long paramsLength() override { return 4; }
+    void execute(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) override
+    {
+        long offset = 1;
+        bool isImmediate = modes & ImmediateMode::first;
+        const long first = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+
+        offset = 2;
+        isImmediate = modes & ImmediateMode::second;
+        const long second = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+
+        offset = 3;
+        // need position!
+        const long dst = getParam(begginingOfInstruction, computerMemory, offset, true);
+
+        computerMemory[dst] = first < second ? 1 : 0;
+        //cerr << "Mode: " << modes << " [" << dst << "] = " << first << " < " << second << endl;
+    }
+};
+
+class Equals : public CmdExecutor
+{
+public:
+    long paramsLength() override { return 4; }
+    void execute(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) override
+    {
+        long offset = 1;
+        bool isImmediate = modes & ImmediateMode::first;
+        const long first = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+
+        offset = 2;
+        isImmediate = modes & ImmediateMode::second;
+        const long second = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+
+        // need position!
+        const long dst = getParam(begginingOfInstruction, computerMemory, 3, true);
+        computerMemory[dst] = (first == second) ? 1 : 0;
+        //cerr << "Mode: " << modes << " [" << dst << "] = " << first << " == " << second << endl;
     }
 };
 
@@ -273,16 +344,18 @@ int main()
         cin >> separator;
     }
     computer.setMemory();
-    //computer.printMemory();
     // register instructions
     computer.instructionSet.insert({OpcodeInstruction::multiply, CmdExecutorPtr{new Multiply()}});
     computer.instructionSet.insert({OpcodeInstruction::sum, CmdExecutorPtr{new Sum()}});
     computer.instructionSet.insert({OpcodeInstruction::halt, CmdExecutorPtr{new Halt()}});
     computer.instructionSet.insert({OpcodeInstruction::input, CmdExecutorPtr{new Input()}});
     computer.instructionSet.insert({OpcodeInstruction::output, CmdExecutorPtr{new Output()}});
+    computer.instructionSet.insert({OpcodeInstruction::jump_if_true, CmdExecutorPtr{new Jump_if_true()}});
+    computer.instructionSet.insert({OpcodeInstruction::jump_if_false, CmdExecutorPtr{new Jump_if_false()}});
+    computer.instructionSet.insert({OpcodeInstruction::less_than, CmdExecutorPtr{new Less_than()}});
+    computer.instructionSet.insert({OpcodeInstruction::equals, CmdExecutorPtr{new Equals()}});
 
-    const long result = computer.runningLoop(1);
-    //computer.printMemory();
+    const long result = computer.runningLoop(5);
     cout << "Return code is " << result << endl;
     return 0;
 }
