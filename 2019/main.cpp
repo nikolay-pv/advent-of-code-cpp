@@ -37,6 +37,16 @@ long calculateDistance(Node* target)
     return counter;
 }
 
+vector<string> getSequenceToRoot(Node* target)
+{
+    vector<string> result{};
+    Node* next = target->parent.get();
+    cerr << "haha" << endl;
+    for (; next != nullptr; next = next->parent.get())
+        result.push_back(next->name);
+    return result;
+}
+
 void processNodes(const string& searchName, shared_ptr<Node> parent,
                  map<string, vector<string>>& inputdata,
                  vector<shared_ptr<Node>>& nodes)
@@ -83,6 +93,36 @@ int main()
     for_each(nodes.cbegin(), nodes.cend(), [&result](const auto& el) { result += calculateDistance(el.get()); });
     cout << "The total number of direct and indirect orbits is " << result << endl;
 
+    auto santa = find(nodes.cbegin(), nodes.cend(), "SAN");
+    if (santa == nodes.cend())
+        cerr << "Santa does not exist." << endl;
+    auto me = find(nodes.cbegin(), nodes.cend(), "YOU");
+    if (me == nodes.cend())
+        cerr << "Spoon does not exist." << endl;
+
+    auto santaRoot = getSequenceToRoot(santa->get());
+    for_each(santaRoot.cbegin(), santaRoot.cend(),
+            [](const auto& el) { cerr << el << ", ";});
+    cerr << endl;
+
+    auto meRoot = getSequenceToRoot(me->get());
+    for_each(meRoot.cbegin(), meRoot.cend(),
+            [](const auto& el) { cerr << el << ", ";});
+    cerr << endl;
+
+    int srSz, mrSz;
+    for (srSz = santaRoot.size() - 1, mrSz = meRoot.size() - 1;
+         srSz != -1 && mrSz != -1; --srSz, --mrSz)
+    {
+        if(santaRoot[srSz] != meRoot[mrSz])
+            break;
+        //cerr << srSz << " and " << mrSz << endl;
+        //cerr << santaRoot[srSz] << " == " << meRoot[mrSz] << endl;
+    }
+    // zero-base count
+    ++srSz; ++mrSz;
+
+    cout << "Distance is " << srSz << " + " <<  mrSz << " = " << srSz + mrSz << endl;
     //for_each(nodes.cbegin(), nodes.cend(), [](const auto& el) { cerr << *el << endl;});
 
     return 0;
