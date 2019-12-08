@@ -42,7 +42,8 @@ class CmdExecutor
 {
 public:
     long modes = 0;
-    virtual void passValue(long& val) { return; };
+    virtual void passValue(vector<long>& vals) { return; };
+    virtual void getValue(optional<long>& val) { return; };
     virtual void setModes(long val) { modes = val; };
     virtual long paramsLength() = 0;
     virtual void execute(vector<long>::iterator begginingOfInstruction,
@@ -62,16 +63,46 @@ struct IntCodeComputer
     vector<long> memory{};
     std::vector<long>::iterator instructionPos{};
 
-    long cache{};
+    vector<long> cache{};
     long parameterMode{};
 
     void setMemory() { instructionPos = memory.begin(); };
+    void setPhase(long input) { cache.push_back(input); };
+    optional<long> popValueFromCache();
 
     long getMemoryHead() const { return memory[0]; };
     long runningLoop(long input);
     optional<OpcodeInstruction> getCurrentOpcode();
 
     void cerrPrintMemory() const;
+    void cerrPrintCache() const;
+
+    IntCodeComputer()
+    {
+        halting = false;
+    };
+    IntCodeComputer(vector<long> mem)
+    {
+        halting = false;
+        memory = std::move(mem);
+        setMemory();
+    };
+    //IntCodeComputer(const IntCodeComputer& other)
+    //    : instructionSet{other.instructionSet}, memory{other.memory}
+    //{
+    //    instructionPos = memory.begin();
+    //}
+    //IntCodeComputer& operator=(const IntCodeComputer& other)
+    //{
+    //    swap(this->instructionSet, other.instructionSet);
+    //    this->memory = other.memory;
+    //    instructionPos = memory.begin();
+    //}
+    //IntCodeComputer(const IntCodeComputer&& other)
+    //    : instructionSet{other.instructionSet}, memory{other.memory}
+    //{
+    //    instructionPos = memory.begin();
+    //}
 };
 
 bool IntCodeComputer::halting = false;
@@ -83,10 +114,31 @@ void IntCodeComputer::cerrPrintMemory() const
     cerr << endl;
 }
 
+void IntCodeComputer::cerrPrintCache() const
+{
+    cerr << "The internal cache of the computer:" << endl;
+    for_each(cache.cbegin(), cache.cend(), [](const auto& el){ cerr << el << ", ";});
+    cerr << endl;
+}
+
+optional<long> IntCodeComputer::popValueFromCache()
+{
+    if (cache.size() == 0)
+    {
+        //cerr << "No input is provided!" << endl;
+        return nullopt;
+    }
+    long val = cache[0];
+    cache.erase(cache.begin());
+    return val;
+};
+
 long IntCodeComputer::runningLoop(long input)
 {
-    cache = input;
+    cache.push_back(input);
+    //cerrPrintCache();
     long offset = 0;
+    optional<long> result = nullopt;
     while(!halting)
     {
         instructionPos += offset;
@@ -97,15 +149,16 @@ long IntCodeComputer::runningLoop(long input)
         auto executor = instructionSet.find(instrCode.value());
         if (executor == instructionSet.end())
             break;
+        //cerr << "Inside runner before passing to executor" << endl;
         //cerrPrintMemory();
         executor->second->passValue(cache);
         executor->second->setModes(parameterMode);
         executor->second->execute(instructionPos, memory);
-        //executor->second->passValue(cache);
+        executor->second->getValue(result);
         offset = executor->second->paramsLength();
     }
     if (halting)
-        return 0;
+        return result != nullopt ? result.value() : -42;
     cout << "Houston, we have a problem!" << endl;
     IntCodeComputer::halt();
     return -1;
@@ -132,6 +185,7 @@ optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
     }
     // last 2 digits
     const long code = tmp.length() > 2 ? stol(tmp.substr(tmp.length() - 2, 2)) : *instructionPos;
+    //cerr << "Log: try to cast the code " << code << endl;
     return castToOpcode(code);
 }
 
@@ -197,23 +251,36 @@ class Input : public CmdExecutor
 {
     long inputValue = 0;
 public:
-    void passValue(long& val) override { inputValue = val; };
+    void passValue(vector<long>& vals) override
+    {
+        if (vals.size() == 0)
+            cerr << "Got empty list as input!" << endl;
+        else
+        {
+            //cerr << "Input executor: changing " << inputValue << " to " << vals[0] << endl;
+            inputValue = vals[0];
+            vals.erase(vals.begin());
+        }
+    };
     long paramsLength() override { return 2; }
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
         const long dst = *(begginingOfInstruction + 1);
         computerMemory[dst] = inputValue;
-        cout << "Input: " << inputValue << endl;
+        //cerr << "Input: " << inputValue << endl;
     }
 };
 
 class Output : public CmdExecutor
 {
     // prevent modification of the cache
-    //optional<long> output = nullopt;
+    optional<long> output = nullopt;
 public:
-    //void passValue(long& val) override { if (output != nullopt) val = output.value(); };
+    void getValue(optional<long>& val) override
+    {
+        val = output;
+    };
     long paramsLength() override { return 2; }
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
@@ -221,7 +288,8 @@ public:
         const long offset = 1;
         const bool isImmediate = modes & ImmediateMode::first;
         const long val = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
-        cout << "Outut: " << val << endl;
+        output = val;
+        //cerr << "Outut: " << val << endl;
     }
 };
 
@@ -327,6 +395,19 @@ public:
     }
 };
 
+void setUpInstructions(map<OpcodeInstruction, CmdExecutorPtr>& instructionSet)
+{
+    instructionSet.insert({OpcodeInstruction::multiply, CmdExecutorPtr{new Multiply()}});
+    instructionSet.insert({OpcodeInstruction::sum, CmdExecutorPtr{new Sum()}});
+    instructionSet.insert({OpcodeInstruction::halt, CmdExecutorPtr{new Halt()}});
+    instructionSet.insert({OpcodeInstruction::input, CmdExecutorPtr{new Input()}});
+    instructionSet.insert({OpcodeInstruction::output, CmdExecutorPtr{new Output()}});
+    instructionSet.insert({OpcodeInstruction::jump_if_true, CmdExecutorPtr{new Jump_if_true()}});
+    instructionSet.insert({OpcodeInstruction::jump_if_false, CmdExecutorPtr{new Jump_if_false()}});
+    instructionSet.insert({OpcodeInstruction::less_than, CmdExecutorPtr{new Less_than()}});
+    instructionSet.insert({OpcodeInstruction::equals, CmdExecutorPtr{new Equals()}});
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // main
 int main()
@@ -343,20 +424,34 @@ int main()
         char separator;
         cin >> separator;
     }
-    computer.setMemory();
+    //computer.setMemory();
     // register instructions
-    computer.instructionSet.insert({OpcodeInstruction::multiply, CmdExecutorPtr{new Multiply()}});
-    computer.instructionSet.insert({OpcodeInstruction::sum, CmdExecutorPtr{new Sum()}});
-    computer.instructionSet.insert({OpcodeInstruction::halt, CmdExecutorPtr{new Halt()}});
-    computer.instructionSet.insert({OpcodeInstruction::input, CmdExecutorPtr{new Input()}});
-    computer.instructionSet.insert({OpcodeInstruction::output, CmdExecutorPtr{new Output()}});
-    computer.instructionSet.insert({OpcodeInstruction::jump_if_true, CmdExecutorPtr{new Jump_if_true()}});
-    computer.instructionSet.insert({OpcodeInstruction::jump_if_false, CmdExecutorPtr{new Jump_if_false()}});
-    computer.instructionSet.insert({OpcodeInstruction::less_than, CmdExecutorPtr{new Less_than()}});
-    computer.instructionSet.insert({OpcodeInstruction::equals, CmdExecutorPtr{new Equals()}});
+    //setUpInstructions(computer.instructionSet);
 
-    const long result = computer.runningLoop(5);
-    cout << "Return code is " << result << endl;
+    vector<long> phaseSettings{0,1,2,3,4};
+    pair<vector<long>, long> result{phaseSettings, -222};
+    do
+    {
+        long output = 0;
+        for(long phase : phaseSettings)
+        {
+            IntCodeComputer amplifier{computer.memory};
+            //amplifier.memory = computer.memory;
+            setUpInstructions(amplifier.instructionSet);
+            //amplifier.setMemory();
+            amplifier.setPhase(phase);
+            //amplifier.cerrPrintMemory();
+            output = amplifier.runningLoop(output);
+            //cerr << "Phase [ " << phase << " ]: output = " << output << endl;
+        }
+        if (output > result.second)
+            result = {phaseSettings, output};
+    } while(std::next_permutation(phaseSettings.begin(), phaseSettings.end()));
+
+    cout << "The highest signal that can be sent to the thrusters is " << result.second << endl;
+    cout << "The phase settings combination is ";
+    for_each(result.first.cbegin(), result.first.cend(), [](const auto& el){ cout << el << ", "; });
+    cout << endl;
     return 0;
 }
 
