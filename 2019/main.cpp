@@ -71,7 +71,7 @@ struct IntCodeComputer
     optional<long> popValueFromCache();
 
     long getMemoryHead() const { return memory[0]; };
-    long runningLoop(long input);
+    pair<long, bool> runningLoop(long input);
     optional<OpcodeInstruction> getCurrentOpcode();
 
     void cerrPrintMemory() const;
@@ -133,7 +133,7 @@ optional<long> IntCodeComputer::popValueFromCache()
     return val;
 };
 
-long IntCodeComputer::runningLoop(long input)
+pair<long, bool> IntCodeComputer::runningLoop(long input)
 {
     cache.push_back(input);
     //cerrPrintCache();
@@ -156,12 +156,15 @@ long IntCodeComputer::runningLoop(long input)
         executor->second->execute(instructionPos, memory);
         executor->second->getValue(result);
         offset = executor->second->paramsLength();
+        if (result != nullopt)
+            break;
     }
-    if (halting)
-        return result != nullopt ? result.value() : -42;
-    cout << "Houston, we have a problem!" << endl;
-    IntCodeComputer::halt();
-    return -1;
+    //if (halting)
+    if (result == nullopt)
+        cout << "Houston, we have a problem!" << endl;
+    return {result != nullopt ? result.value() : -42, halting};
+    //IntCodeComputer::halt();
+    //return {-1, true};
 }
 
 optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
@@ -433,6 +436,7 @@ int main()
     do
     {
         long output = 0;
+        bool halting = false;
         for(long phase : phaseSettings)
         {
             IntCodeComputer amplifier{computer.memory};
@@ -441,7 +445,9 @@ int main()
             //amplifier.setMemory();
             amplifier.setPhase(phase);
             //amplifier.cerrPrintMemory();
-            output = amplifier.runningLoop(output);
+            auto res = amplifier.runningLoop(output);
+            output = res.first;
+            halting = res.second;
             //cerr << "Phase [ " << phase << " ]: output = " << output << endl;
         }
         if (output > result.second)
