@@ -150,7 +150,7 @@ pair<long, bool> IntCodeComputer::runningLoop(long input)
         if (executor == instructionSet.end())
             break;
         //cerr << "Inside runner before passing to executor" << endl;
-        //cerrPrintMemory();
+        cerrPrintMemory();
         executor->second->passValue(cache);
         executor->second->setModes(parameterMode);
         executor->second->execute(instructionPos, memory);
@@ -159,10 +159,12 @@ pair<long, bool> IntCodeComputer::runningLoop(long input)
         if (result != nullopt)
             break;
     }
-    //if (halting)
     if (result == nullopt)
+    {
         cout << "Houston, we have a problem!" << endl;
-    return {result != nullopt ? result.value() : -42, halting};
+        return {-42, true};
+    }
+    return {result.value(), halting};
     //IntCodeComputer::halt();
     //return {-1, true};
 }
@@ -395,6 +397,7 @@ public:
     void execute(vector<long>::iterator, vector<long>&) override
     {
         IntCodeComputer::halt();
+        cerr << "Halting" << endl;
     }
 };
 
@@ -432,26 +435,38 @@ int main()
     //setUpInstructions(computer.instructionSet);
 
     vector<long> phaseSettings{0,1,2,3,4};
+    //vector<long> phaseSettings{5,6,7,8,9};
+    //vector<long> phaseSettings{9,7,8,5,6};
     pair<vector<long>, long> result{phaseSettings, -222};
     do
     {
-        long output = 0;
-        bool halting = false;
+        vector<IntCodeComputer> amplifiers{};
         for(long phase : phaseSettings)
         {
-            IntCodeComputer amplifier{computer.memory};
-            //amplifier.memory = computer.memory;
-            setUpInstructions(amplifier.instructionSet);
-            //amplifier.setMemory();
-            amplifier.setPhase(phase);
-            //amplifier.cerrPrintMemory();
-            auto res = amplifier.runningLoop(output);
+            amplifiers.emplace_back(computer.memory);
+            setUpInstructions(amplifiers.back().instructionSet);
+        }
+        long output = 0;
+        bool halting = false;
+        //bool secondTime{false};
+        for(int i = 0; i != amplifiers.size(); ++i)
+        {
+            //if (!secondTime)
+            amplifiers[i].setPhase(phaseSettings[i]);
+            auto res = amplifiers[i].runningLoop(output);
+            //amplifiers[i].setMemory();
             output = res.first;
             halting = res.second;
-            //cerr << "Phase [ " << phase << " ]: output = " << output << endl;
+            //cerr << "Phase [ " << phaseSettings[i] << " ]: output = " << output << endl;
+            if (!halting && i == amplifiers.size() - 1)
+            {
+                //i = 0;
+                //secondTime = true;
+            }
         }
         if (output > result.second)
             result = {phaseSettings, output};
+        cerr << "Halting? " << halting << endl;
     } while(std::next_permutation(phaseSettings.begin(), phaseSettings.end()));
 
     cout << "The highest signal that can be sent to the thrusters is " << result.second << endl;
