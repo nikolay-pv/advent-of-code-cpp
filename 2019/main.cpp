@@ -17,7 +17,15 @@ enum OpcodeInstruction : long
     jump_if_false = 6,
     less_than = 7,
     equals = 8,
+    rel_base_offset = 9,
     halt = 99
+};
+
+enum ParamMode : long
+{
+    Positional = '0',
+    Immediate = '1',
+    Relative = '2'
 };
 
 optional<OpcodeInstruction> castToOpcode(long value)
@@ -32,6 +40,7 @@ optional<OpcodeInstruction> castToOpcode(long value)
     case OpcodeInstruction::jump_if_false:
     case OpcodeInstruction::less_than:
     case OpcodeInstruction::equals:
+    case OpcodeInstruction::rel_base_offset:
         break;
     default :
         cerr << "Ups, got " << value << std::endl;
@@ -43,10 +52,10 @@ optional<OpcodeInstruction> castToOpcode(long value)
 class CmdExecutor
 {
 public:
-    long modes = 0;
+    vector<ParamMode> modes{};
     virtual void passValue(list<long>& vals) { return; };
     virtual void getValue(optional<long>& val) { return; };
-    virtual void setModes(long val) { modes = val; };
+    virtual void setModes(vector<ParamMode> val) { modes = std::move(val); };
     virtual long paramsLength() = 0;
     virtual void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) = 0;
@@ -60,6 +69,7 @@ struct IntCodeComputer
 {
     static bool halting;
     static void halt() { halting = true; };
+    static long relativeBase;
 
     enum State {
         Running,
@@ -74,7 +84,7 @@ struct IntCodeComputer
     std::vector<long>::iterator instructionPos{};
 
     list<long> cache{};
-    long parameterMode{};
+    vector<ParamMode> parameterMode{};
 
     void setMemory() { instructionPos = memory.begin(); };
     void setPhase(long input) { cache.push_back(input); };
@@ -105,6 +115,7 @@ struct IntCodeComputer
 };
 
 bool IntCodeComputer::halting = false;
+long IntCodeComputer::relativeBase = 0;
 
 void IntCodeComputer::cerrPrintMemory() const
 {
@@ -178,18 +189,15 @@ optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
 {
     string tmp = to_string(*instructionPos);
     //cerr << "Opcode candidate " << tmp << endl;
-    parameterMode = 0;
+    parameterMode.clear();
     // everything but last 2 digits
     if (tmp.length() > 2)
     {
-        long counter = 1;
         auto modes = tmp.substr(0, tmp.length() - 2);
         //cerr << "Modes candidate " << modes << endl;
         for (auto bit = modes.rbegin(); bit != modes.rend(); ++bit)
         {
-            if (*bit == '1')
-                parameterMode += counter;
-            counter <<= 1;
+            parameterMode.push_back(static_cast<ParamMode>(*bit));
         }
         //cerr << "Log: setting the mode to " << parameterMode << endl;
     }
@@ -202,24 +210,26 @@ optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
 ////////////////////////////////////////////////////////////////////////////////
 // CmdExecutors
 
+ParamMode getParamMode(vector<ParamMode>& modes, long offset)
+{
+    if (offset - 1 >= modes.size())
+        return Positional;
+    return modes[offset - 1];
+}
+
 long getParam(vector<long>::iterator begginingOfInstruction,
               vector<long>& computerMemory,
               long offset,
-              bool isImmediateMode)
+              ParamMode mode)
 {
     const long val = *(begginingOfInstruction + offset);
-    if (isImmediateMode)
-        return val;
-    else
-        return computerMemory[val];
+    switch (mode)
+    {
+        case Positional: return computerMemory[val];
+        case Immediate: return val;
+        case Relative: return computerMemory[val + IntCodeComputer::relativeBase];
+    }
 }
-
-enum ImmediateMode : long
-{
-    first = 0b01,
-    second = 0b10,
-    third = 0b100
-};
 
 class Sum : public CmdExecutor
 {
@@ -228,12 +238,13 @@ public:
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
-        bool isImmediate = modes & ImmediateMode::first;
-        const long leftVal = getParam(begginingOfInstruction, computerMemory, 1, isImmediate);
-        isImmediate = modes & ImmediateMode::second;
-        const long rightVal = getParam(begginingOfInstruction, computerMemory, 2, isImmediate);
+        long offset = 1;
+        const long leftVal = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
+        offset = 2;
+        const long rightVal = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         // need position!
-        const long dst = getParam(begginingOfInstruction, computerMemory, 3, true);
+        offset = 3;
+        const long dst = getParam(begginingOfInstruction, computerMemory, offset, Immediate);
         //cerr << "Mode: " << modes << " [" << dst << "] = " << leftVal << " + " << rightVal << endl;
         computerMemory[dst] = leftVal + rightVal;
     }
@@ -246,12 +257,13 @@ public:
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
-        bool isImmediate = modes & ImmediateMode::first;
-        const long leftVal = getParam(begginingOfInstruction, computerMemory, 1, isImmediate);
-        isImmediate = modes & ImmediateMode::second;
-        const long rightVal = getParam(begginingOfInstruction, computerMemory, 2, isImmediate);
+        long offset = 1;
+        const long leftVal = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
+        offset = 2;
+        const long rightVal = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         // need position!
-        const long dst = getParam(begginingOfInstruction, computerMemory, 3, true);
+        offset = 3;
+        const long dst = getParam(begginingOfInstruction, computerMemory, offset, Immediate);
         //cerr << "Mode: " << modes << " [" << dst << "] = " << leftVal << " * " << rightVal << endl;
         computerMemory[dst] = leftVal * rightVal;
     }
@@ -299,8 +311,7 @@ public:
                          vector<long>& computerMemory) override
     {
         const long offset = 1;
-        const bool isImmediate = modes & ImmediateMode::first;
-        const long val = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+        const long val = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         output = val;
         //cerr << "Outut: " << val << endl;
     }
@@ -315,13 +326,12 @@ public:
                          vector<long>& computerMemory) override
     {
         dynamicLength = 3;
-        const long offset = 1;
-        bool isImmediate = modes & ImmediateMode::first;
-        const long val = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+        long offset = 1;
+        const long val = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         if (val != 0)
         {
-            const bool isImmediate = modes & ImmediateMode::second;
-            const long newpointer = getParam(begginingOfInstruction, computerMemory, 2, isImmediate);
+            offset = 2;
+            const long newpointer = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
             dynamicLength = newpointer - (begginingOfInstruction - computerMemory.begin());
             //cerr << "NewPointer " << newpointer << " diff " << (begginingOfInstruction - computerMemory.begin()) << endl;
         }
@@ -338,13 +348,12 @@ public:
                          vector<long>& computerMemory) override
     {
         dynamicLength = 3;
-        const long offset = 1;
-        bool isImmediate = modes & ImmediateMode::first;
-        const long val = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+        long offset = 1;
+        const long val = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         if (val == 0)
         {
-            const bool isImmediate = modes & ImmediateMode::second;
-            const long newpointer = getParam(begginingOfInstruction, computerMemory, 2, isImmediate);
+            offset = 2;
+            const long newpointer = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
             dynamicLength = newpointer - (begginingOfInstruction - computerMemory.begin());
         }
         //cerr << "Mode: " << modes << " [" << dynamicLength << "] = " << val << " == " << 0 << endl;
@@ -359,16 +368,14 @@ public:
                          vector<long>& computerMemory) override
     {
         long offset = 1;
-        bool isImmediate = modes & ImmediateMode::first;
-        const long first = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+        const long first = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
 
         offset = 2;
-        isImmediate = modes & ImmediateMode::second;
-        const long second = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+        const long second = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
 
         offset = 3;
         // need position!
-        const long dst = getParam(begginingOfInstruction, computerMemory, offset, true);
+        const long dst = getParam(begginingOfInstruction, computerMemory, offset, Immediate);
 
         computerMemory[dst] = first < second ? 1 : 0;
         //cerr << "Mode: " << modes << " [" << dst << "] = " << first << " < " << second << endl;
@@ -383,17 +390,31 @@ public:
                          vector<long>& computerMemory) override
     {
         long offset = 1;
-        bool isImmediate = modes & ImmediateMode::first;
-        const long first = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+        const long first = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
 
         offset = 2;
-        isImmediate = modes & ImmediateMode::second;
-        const long second = getParam(begginingOfInstruction, computerMemory, offset, isImmediate);
+        const long second = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
 
         // need position!
-        const long dst = getParam(begginingOfInstruction, computerMemory, 3, true);
+        offset = 3;
+        const long dst = getParam(begginingOfInstruction, computerMemory, offset, Immediate);
         computerMemory[dst] = (first == second) ? 1 : 0;
         //cerr << "Mode: " << modes << " [" << dst << "] = " << first << " == " << second << endl;
+    }
+};
+
+class Rel_base_offset : public CmdExecutor
+{
+public:
+    long paramsLength() override { return 2; }
+    void execute(vector<long>::iterator begginingOfInstruction,
+                         vector<long>& computerMemory) override
+    {
+        long offset = 1;
+        const long first = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
+
+        IntCodeComputer::relativeBase += first;
+        //cerr << "Mode: " << modes << " [ base Offset ] = " << baseOffset << " (" << first << ")" << endl;
     }
 };
 
@@ -420,6 +441,7 @@ void setUpInstructions(map<OpcodeInstruction, CmdExecutorPtr>& instructionSet)
     instructionSet.insert({OpcodeInstruction::jump_if_false, CmdExecutorPtr{new Jump_if_false()}});
     instructionSet.insert({OpcodeInstruction::less_than, CmdExecutorPtr{new Less_than()}});
     instructionSet.insert({OpcodeInstruction::equals, CmdExecutorPtr{new Equals()}});
+    instructionSet.insert({OpcodeInstruction::rel_base_offset, CmdExecutorPtr{new Rel_base_offset()}});
 }
 
 ////////////////////////////////////////////////////////////////////////////////
