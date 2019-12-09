@@ -169,11 +169,11 @@ pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(long input)
         executor->second->getValue(result);
         instructionPos += executor->second->paramsLength();
         //cerrPrintMemory();
-        if (result != nullopt)
-        {
-            state = State::Paused;
-            break;
-        }
+        //if (result != nullopt)
+        //{
+        //    state = State::Paused;
+        //    break;
+        //}
     }
     if (result == nullopt)
     {
@@ -225,9 +225,18 @@ long getParam(vector<long>::iterator begginingOfInstruction,
     const long val = *(begginingOfInstruction + offset);
     switch (mode)
     {
-        case Positional: return computerMemory[val];
-        case Immediate: return val;
-        case Relative: return computerMemory[val + IntCodeComputer::relativeBase];
+        case Positional:
+            if (val >= computerMemory.size())
+                computerMemory.resize(val, 0);
+            return computerMemory[val];
+        case Immediate:
+            if (val >= computerMemory.size())
+                computerMemory.resize(val, 0);
+            return val;
+        case Relative:
+            if (val + IntCodeComputer::relativeBase >= computerMemory.size())
+                computerMemory.resize(val + IntCodeComputer::relativeBase, 0);
+            return computerMemory[val + IntCodeComputer::relativeBase];
     }
 }
 
@@ -313,7 +322,7 @@ public:
         const long offset = 1;
         const long val = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         output = val;
-        //cerr << "Outut: " << val << endl;
+        cout << "Outut: " << val << endl;
     }
 };
 
@@ -426,7 +435,7 @@ public:
     void execute(vector<long>::iterator, vector<long>&) override
     {
         IntCodeComputer::halt();
-        //cerr << "Halting" << endl;
+        cerr << "Halting" << endl;
     }
 };
 
@@ -462,50 +471,15 @@ int main()
     }
     computer.setMemory();
     // register instructions
-    //setUpInstructions(computer.instructionSet);
+    setUpInstructions(computer.instructionSet);
 
-    //vector<long> phaseSettings{0,1,2,3,4};
-    vector<long> phaseSettings{5,6,7,8,9};
-    const vector<string> names{"A","B","C","D","E"};
-    pair<vector<long>, long> result{phaseSettings, -222};
-    vector<IntCodeComputer> amplifiers{};
-    do
-    {
-        amplifiers.clear();
-        for(int j = 0; j != phaseSettings.size(); ++j)
-        {
-            amplifiers.emplace_back(names[j], computer.memory);
-            setUpInstructions(amplifiers.back().instructionSet);
-            amplifiers.back().setPhase(phaseSettings[j]);
-        }
-        long output = 0;
-        IntCodeComputer::State state = IntCodeComputer::Running;
-        int i = 0;
-        while(i != amplifiers.size())
-        {
-            auto res = amplifiers[i].runningLoop(output);
-            output = res.first;
-            state = res.second;
-            //cerr << "Phase [ " << phaseSettings[i] << " ]: output = " << output << endl;
-            if (state == IntCodeComputer::Halt)
-                break;
-            if (i == amplifiers.size() - 1)
-            {
-                //cerr << "============================================================" << endl;
-                i = 0;
-                continue;
-            }
-            ++i;
-            //cerr << "++++++++++++++++++++++++++++++++++++++++" << endl;
-        }
-        if (output > result.second)
-            result = {phaseSettings, output};
-    } while(std::next_permutation(phaseSettings.begin(), phaseSettings.end()));
+    long output = 1;
 
-    cout << "The highest signal that can be sent to the thrusters is " << result.second << endl;
-    cout << "The phase settings combination is ";
-    for_each(result.first.cbegin(), result.first.cend(), [](const auto& el){ cout << el << ", "; });
-    cout << endl;
+    auto [out, state] = computer.runningLoop(output);
+    output = out;
+
+    cout << "Produced BOOST keycode is " << output << endl;
+    //for_each(result.first.cbegin(), result.first.cend(), [](const auto& el){ cout << el << ", "; });
     return 0;
 }
 
