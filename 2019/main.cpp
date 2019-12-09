@@ -1,6 +1,8 @@
 #include <iostream>
 #include <vector>
+#include <array>
 #include <map>
+#include <list>
 #include <memory>
 using namespace std;
 
@@ -42,7 +44,7 @@ class CmdExecutor
 {
 public:
     long modes = 0;
-    virtual void passValue(vector<long>& vals) { return; };
+    virtual void passValue(list<long>& vals) { return; };
     virtual void getValue(optional<long>& val) { return; };
     virtual void setModes(long val) { modes = val; };
     virtual long paramsLength() = 0;
@@ -59,11 +61,19 @@ struct IntCodeComputer
     static bool halting;
     static void halt() { halting = true; };
 
+    enum State {
+        Running,
+        Paused,
+        Halt
+    };
+    State state = Running;
+    string name {};
+
     map<OpcodeInstruction, CmdExecutorPtr> instructionSet{};
     vector<long> memory{};
     std::vector<long>::iterator instructionPos{};
 
-    vector<long> cache{};
+    list<long> cache{};
     long parameterMode{};
 
     void setMemory() { instructionPos = memory.begin(); };
@@ -71,7 +81,7 @@ struct IntCodeComputer
     optional<long> popValueFromCache();
 
     long getMemoryHead() const { return memory[0]; };
-    pair<long, bool> runningLoop(long input);
+    pair<long, State> runningLoop(long input);
     optional<OpcodeInstruction> getCurrentOpcode();
 
     void cerrPrintMemory() const;
@@ -82,41 +92,31 @@ struct IntCodeComputer
         halting = false;
     };
     IntCodeComputer(vector<long> mem)
+        : memory{std::move(mem)}
     {
         halting = false;
-        memory = std::move(mem);
         setMemory();
     };
-    //IntCodeComputer(const IntCodeComputer& other)
-    //    : instructionSet{other.instructionSet}, memory{other.memory}
-    //{
-    //    instructionPos = memory.begin();
-    //}
-    //IntCodeComputer& operator=(const IntCodeComputer& other)
-    //{
-    //    swap(this->instructionSet, other.instructionSet);
-    //    this->memory = other.memory;
-    //    instructionPos = memory.begin();
-    //}
-    //IntCodeComputer(const IntCodeComputer&& other)
-    //    : instructionSet{other.instructionSet}, memory{other.memory}
-    //{
-    //    instructionPos = memory.begin();
-    //}
+    IntCodeComputer(string nn, vector<long> mem)
+        : IntCodeComputer(std::move(mem))
+    {
+        name = std::move(nn);
+    };
 };
 
 bool IntCodeComputer::halting = false;
 
 void IntCodeComputer::cerrPrintMemory() const
 {
-    cerr << "The internal memory of the computer:" << endl;
+    cerrPrintCache();
+    cerr << "The internal memory of the computer [" << name << "] :" << endl;
     for_each(memory.cbegin(), memory.cend(), [](const auto& el){ cerr << el << ", ";});
     cerr << endl;
 }
 
 void IntCodeComputer::cerrPrintCache() const
 {
-    cerr << "The internal cache of the computer:" << endl;
+    cerr << "The internal cache of the computer [" << name << "] :" << endl;
     for_each(cache.cbegin(), cache.cend(), [](const auto& el){ cerr << el << ", ";});
     cerr << endl;
 }
@@ -128,20 +128,22 @@ optional<long> IntCodeComputer::popValueFromCache()
         //cerr << "No input is provided!" << endl;
         return nullopt;
     }
-    long val = cache[0];
+    long val = cache.front();
     cache.erase(cache.begin());
     return val;
 };
 
-pair<long, bool> IntCodeComputer::runningLoop(long input)
+pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(long input)
 {
+    if (state == Halt)
+        return { input, state };
+    state = Running;
     cache.push_back(input);
-    //cerrPrintCache();
+    //cerrPrintMemory();
     long offset = 0;
     optional<long> result = nullopt;
     while(!halting)
     {
-        instructionPos += offset;
         //cerr << "Instruction position is " << (instructionPos - memory.begin()) << endl;
         auto instrCode = getCurrentOpcode();
         if (instrCode == nullopt)
@@ -150,23 +152,26 @@ pair<long, bool> IntCodeComputer::runningLoop(long input)
         if (executor == instructionSet.end())
             break;
         //cerr << "Inside runner before passing to executor" << endl;
-        cerrPrintMemory();
         executor->second->passValue(cache);
         executor->second->setModes(parameterMode);
         executor->second->execute(instructionPos, memory);
         executor->second->getValue(result);
-        offset = executor->second->paramsLength();
+        instructionPos += executor->second->paramsLength();
+        //cerrPrintMemory();
         if (result != nullopt)
+        {
+            state = State::Paused;
             break;
+        }
     }
     if (result == nullopt)
     {
-        cout << "Houston, we have a problem!" << endl;
-        return {-42, true};
+        //cout << "Houston, we have a problem!" << endl;
+        return {input, Halt};
     }
-    return {result.value(), halting};
-    //IntCodeComputer::halt();
-    //return {-1, true};
+    if (state != State::Paused)
+        state = State::Halt;
+    return {result.value(), state};
 }
 
 optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
@@ -256,14 +261,17 @@ class Input : public CmdExecutor
 {
     long inputValue = 0;
 public:
-    void passValue(vector<long>& vals) override
+    void passValue(list<long>& vals) override
     {
         if (vals.size() == 0)
+        {
             cerr << "Got empty list as input!" << endl;
+            inputValue = 0;
+        }
         else
         {
-            //cerr << "Input executor: changing " << inputValue << " to " << vals[0] << endl;
-            inputValue = vals[0];
+            //cerr << "Input executor: changing " << inputValue << " to " << vals.front() << endl;
+            inputValue = vals.front();
             vals.erase(vals.begin());
         }
     };
@@ -393,11 +401,11 @@ public:
 class Halt : public CmdExecutor
 {
 public:
-    long paramsLength() override { return 1; }
+    long paramsLength() override { return 0; }
     void execute(vector<long>::iterator, vector<long>&) override
     {
         IntCodeComputer::halt();
-        cerr << "Halting" << endl;
+        //cerr << "Halting" << endl;
     }
 };
 
@@ -430,43 +438,46 @@ int main()
         char separator;
         cin >> separator;
     }
-    //computer.setMemory();
+    computer.setMemory();
     // register instructions
     //setUpInstructions(computer.instructionSet);
 
-    vector<long> phaseSettings{0,1,2,3,4};
-    //vector<long> phaseSettings{5,6,7,8,9};
-    //vector<long> phaseSettings{9,7,8,5,6};
+    //vector<long> phaseSettings{0,1,2,3,4};
+    vector<long> phaseSettings{5,6,7,8,9};
+    const vector<string> names{"A","B","C","D","E"};
     pair<vector<long>, long> result{phaseSettings, -222};
+    vector<IntCodeComputer> amplifiers{};
     do
     {
-        vector<IntCodeComputer> amplifiers{};
-        for(long phase : phaseSettings)
+        amplifiers.clear();
+        for(int j = 0; j != phaseSettings.size(); ++j)
         {
-            amplifiers.emplace_back(computer.memory);
+            amplifiers.emplace_back(names[j], computer.memory);
             setUpInstructions(amplifiers.back().instructionSet);
+            amplifiers.back().setPhase(phaseSettings[j]);
         }
         long output = 0;
-        bool halting = false;
-        //bool secondTime{false};
-        for(int i = 0; i != amplifiers.size(); ++i)
+        IntCodeComputer::State state = IntCodeComputer::Running;
+        int i = 0;
+        while(i != amplifiers.size())
         {
-            //if (!secondTime)
-            amplifiers[i].setPhase(phaseSettings[i]);
             auto res = amplifiers[i].runningLoop(output);
-            //amplifiers[i].setMemory();
             output = res.first;
-            halting = res.second;
+            state = res.second;
             //cerr << "Phase [ " << phaseSettings[i] << " ]: output = " << output << endl;
-            if (!halting && i == amplifiers.size() - 1)
+            if (state == IntCodeComputer::Halt)
+                break;
+            if (i == amplifiers.size() - 1)
             {
-                //i = 0;
-                //secondTime = true;
+                //cerr << "============================================================" << endl;
+                i = 0;
+                continue;
             }
+            ++i;
+            //cerr << "++++++++++++++++++++++++++++++++++++++++" << endl;
         }
         if (output > result.second)
             result = {phaseSettings, output};
-        cerr << "Halting? " << halting << endl;
     } while(std::next_permutation(phaseSettings.begin(), phaseSettings.end()));
 
     cout << "The highest signal that can be sent to the thrusters is " << result.second << endl;
