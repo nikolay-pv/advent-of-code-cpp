@@ -6,6 +6,10 @@
 #include <memory>
 using namespace std;
 
+#define INTCODEDEBUG 0
+
+using ll = long long;
+#define long ll
 
 enum OpcodeInstruction : long
 {
@@ -21,12 +25,18 @@ enum OpcodeInstruction : long
     halt = 99
 };
 
-enum ParamMode : long
+enum ParamMode : char
 {
     Positional = '0',
     Immediate = '1',
-    Relative = '2'
+    Relative = '2',
 };
+
+std::ostream& operator<<(std::ostream& os, const vector<ParamMode>& obj)
+{
+    for_each(obj.cbegin(), obj.cend(), [&os](const auto& el){ os << static_cast<char>(el); });
+    return os;
+}
 
 optional<OpcodeInstruction> castToOpcode(long value)
 {
@@ -194,10 +204,12 @@ optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
     if (tmp.length() > 2)
     {
         auto modes = tmp.substr(0, tmp.length() - 2);
+        reverse(modes.begin(), modes.end());
         //cerr << "Modes candidate " << modes << endl;
-        for (auto bit = modes.rbegin(); bit != modes.rend(); ++bit)
+        for(char el : modes)
+        //for (auto bit = modes.rbegin(); bit != modes.rend(); ++bit)
         {
-            parameterMode.push_back(static_cast<ParamMode>(*bit));
+            parameterMode.push_back(static_cast<ParamMode>(el));
         }
         //cerr << "Log: setting the mode to " << parameterMode << endl;
     }
@@ -230,13 +242,35 @@ long getParam(vector<long>::iterator begginingOfInstruction,
                 computerMemory.resize(val, 0);
             return computerMemory[val];
         case Immediate:
-            if (val >= computerMemory.size())
-                computerMemory.resize(val, 0);
+            //if (val >= computerMemory.size())
+            //    computerMemory.resize(val, 0);
             return val;
         case Relative:
             if (val + IntCodeComputer::relativeBase >= computerMemory.size())
                 computerMemory.resize(val + IntCodeComputer::relativeBase, 0);
             return computerMemory[val + IntCodeComputer::relativeBase];
+    }
+}
+
+long getOutputParam(vector<long>::iterator begginingOfInstruction,
+              vector<long>& computerMemory,
+              long offset,
+              ParamMode mode)
+{
+    const long val = *(begginingOfInstruction + offset);
+    switch (mode)
+    {
+        case Positional:
+            if (val >= computerMemory.size())
+                computerMemory.resize(val, 0);
+            return val;
+        case Immediate:
+            assert(mode != Immediate);
+            return val;
+        case Relative:
+            if (val + IntCodeComputer::relativeBase >= computerMemory.size())
+                computerMemory.resize(val + IntCodeComputer::relativeBase, 0);
+            return val + IntCodeComputer::relativeBase;
     }
 }
 
@@ -253,8 +287,10 @@ public:
         const long rightVal = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         // need position!
         offset = 3;
-        const long dst = getParam(begginingOfInstruction, computerMemory, offset, Immediate);
-        //cerr << "Mode: " << modes << " [" << dst << "] = " << leftVal << " + " << rightVal << endl;
+        const long dst = getOutputParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
+#ifdef INTCODEDEBUG
+        cerr << "Mode: " << modes << " [" << dst << "] = " << leftVal << " + " << rightVal << endl;
+#endif
         computerMemory[dst] = leftVal + rightVal;
     }
 };
@@ -272,8 +308,10 @@ public:
         const long rightVal = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         // need position!
         offset = 3;
-        const long dst = getParam(begginingOfInstruction, computerMemory, offset, Immediate);
-        //cerr << "Mode: " << modes << " [" << dst << "] = " << leftVal << " * " << rightVal << endl;
+        const long dst = getOutputParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
+#ifdef INTCODEDEBUG
+        cerr << "Mode: " << modes << " [" << dst << "] = " << leftVal << " * " << rightVal << endl;
+#endif
         computerMemory[dst] = leftVal * rightVal;
     }
 };
@@ -291,7 +329,9 @@ public:
         }
         else
         {
-            //cerr << "Input executor: changing " << inputValue << " to " << vals.front() << endl;
+#ifdef INTCODEDEBUG
+            cerr << "Input executor: changing " << inputValue << " to " << vals.front() << endl;
+#endif
             inputValue = vals.front();
             vals.erase(vals.begin());
         }
@@ -300,9 +340,12 @@ public:
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
-        const long dst = *(begginingOfInstruction + 1);
+        const long offset = 1;
+        const long dst = getOutputParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         computerMemory[dst] = inputValue;
-        //cerr << "Input: " << inputValue << endl;
+#ifdef INTCODEDEBUG
+        cerr << "Input; mode: " << modes << " [" << dst << "] = " << inputValue << endl;
+#endif
     }
 };
 
@@ -342,9 +385,13 @@ public:
             offset = 2;
             const long newpointer = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
             dynamicLength = newpointer - (begginingOfInstruction - computerMemory.begin());
-            //cerr << "NewPointer " << newpointer << " diff " << (begginingOfInstruction - computerMemory.begin()) << endl;
+#ifdef INTCODEDEBUG
+            cerr << "NewPointer " << newpointer << " diff " << (begginingOfInstruction - computerMemory.begin()) << endl;
+#endif
         }
-        //cerr << "Mode: " << modes << " [" << dynamicLength << "] = " << val << " != " << 0 << endl;
+#ifdef INTCODEDEBUG
+        cerr << "Mode: " << modes << " [" << dynamicLength << "] = " << val << " != " << 0 << endl;
+#endif
     }
 };
 
@@ -356,6 +403,9 @@ public:
     void execute(vector<long>::iterator begginingOfInstruction,
                          vector<long>& computerMemory) override
     {
+#ifdef INTCODEDEBUG
+        cerr << "Jump_if_false:\t" << *begginingOfInstruction << ", " << *(begginingOfInstruction + 1) << ", " << *(begginingOfInstruction + 2) << endl;
+#endif
         dynamicLength = 3;
         long offset = 1;
         const long val = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
@@ -364,8 +414,13 @@ public:
             offset = 2;
             const long newpointer = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
             dynamicLength = newpointer - (begginingOfInstruction - computerMemory.begin());
+#ifdef INTCODEDEBUG
+            cerr << "NewPointer " << newpointer << " diff " << (begginingOfInstruction - computerMemory.begin()) << endl;
+#endif
         }
-        //cerr << "Mode: " << modes << " [" << dynamicLength << "] = " << val << " == " << 0 << endl;
+#ifdef INTCODEDEBUG
+        cerr << "Mode: " << modes << " [" << dynamicLength << "] = " << val << " == " << 0 << endl;
+#endif
     }
 };
 
@@ -384,10 +439,12 @@ public:
 
         offset = 3;
         // need position!
-        const long dst = getParam(begginingOfInstruction, computerMemory, offset, Immediate);
+        const long dst = getOutputParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
 
         computerMemory[dst] = first < second ? 1 : 0;
-        //cerr << "Mode: " << modes << " [" << dst << "] = " << first << " < " << second << endl;
+#ifdef INTCODEDEBUG
+        cerr << "Mode: " << modes << " [" << dst << "] = " << first << " < " << second << endl;
+#endif
     }
 };
 
@@ -406,9 +463,11 @@ public:
 
         // need position!
         offset = 3;
-        const long dst = getParam(begginingOfInstruction, computerMemory, offset, Immediate);
+        const long dst = getOutputParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
         computerMemory[dst] = (first == second) ? 1 : 0;
-        //cerr << "Mode: " << modes << " [" << dst << "] = " << first << " == " << second << endl;
+#ifdef INTCODEDEBUG
+        cerr << "Mode: " << modes << " [" << dst << "] = " << first << " == " << second << endl;
+#endif
     }
 };
 
@@ -423,7 +482,9 @@ public:
         const long first = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
 
         IntCodeComputer::relativeBase += first;
-        //cerr << "Mode: " << modes << " [ base Offset ] = " << baseOffset << " (" << first << ")" << endl;
+#ifdef INTCODEDEBUG
+        cerr << "Mode: " << modes << " [ base Offset ] = " << IntCodeComputer::relativeBase << " (" << first << ")" << endl;
+#endif
     }
 };
 
