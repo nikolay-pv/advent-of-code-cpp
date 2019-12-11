@@ -7,20 +7,6 @@ using namespace std;
 using ll = long long;
 #define long ll
 
-void setUpInstructions(map<OpcodeInstruction, CmdExecutorPtr>& instructionSet)
-{
-    instructionSet.insert({OpcodeInstruction::multiply, CmdExecutorPtr{new Multiply()}});
-    instructionSet.insert({OpcodeInstruction::sum, CmdExecutorPtr{new Sum()}});
-    instructionSet.insert({OpcodeInstruction::halt, CmdExecutorPtr{new Halt()}});
-    instructionSet.insert({OpcodeInstruction::input, CmdExecutorPtr{new Input()}});
-    instructionSet.insert({OpcodeInstruction::output, CmdExecutorPtr{new Output()}});
-    instructionSet.insert({OpcodeInstruction::jump_if_true, CmdExecutorPtr{new Jump_if_true()}});
-    instructionSet.insert({OpcodeInstruction::jump_if_false, CmdExecutorPtr{new Jump_if_false()}});
-    instructionSet.insert({OpcodeInstruction::less_than, CmdExecutorPtr{new Less_than()}});
-    instructionSet.insert({OpcodeInstruction::equals, CmdExecutorPtr{new Equals()}});
-    instructionSet.insert({OpcodeInstruction::rel_base_offset, CmdExecutorPtr{new Rel_base_offset()}});
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 // main
 int main()

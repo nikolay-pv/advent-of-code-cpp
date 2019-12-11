@@ -1,6 +1,7 @@
 
 #pragma once
 #include <iostream>
+#include <streambuf>
 #include <vector>
 #include <memory>
 #include <list>
@@ -203,3 +204,5 @@ public:
     void execute(vector<long>::iterator, vector<long>&) override;
 };
 
+
+void setUpInstructions(map<OpcodeInstruction, CmdExecutorPtr>& instructionSet);
