@@ -78,16 +78,7 @@ Asteroid findBestAsteroid(vector<Asteroid>& field)
 
 pll transformCoordinatesLaser(pll position)
 {
-    //position = {position.first, position.second};
-    // offset and rotate
-    //position = transformCoordinates(position);
-    // rotate more
-    // (cos -sin) x
-    // (sin  cos) y
-    // return {-position.second, position.first};
-    position = {position.first, fsize-position.second};
-    return {-position.second, position.first};
-    //return position;
+    return {position.second, -position.first};
 }
 
 constexpr double Pi = 3.1415926536;
@@ -138,7 +129,7 @@ pll simulateDistruction(vector<Asteroid>& field, long place)
             {
                 if (i != 0)
                     assert(as[i-1]->polarRelative.first < as[i]->polarRelative.first);
-                //as[i]->polarRelative.second += i*2.0*Pi;
+                as[i]->polarRelative.second += i*2.0*Pi;
             }
         });
     sort(field.begin(), field.end(),
@@ -147,9 +138,10 @@ pll simulateDistruction(vector<Asteroid>& field, long place)
                    || (a.polarRelative.second == b.polarRelative.second
                        && a.polarRelative.first < b.polarRelative.first);
         });
+    long counter = 0;
     for_each(field.cbegin(), field.cend(),
-        [](const auto& el){
-            cerr << el << " with polar coordinates: " << el.polarRelative.first << ", " << el.polarRelative.second << endl;
+        [&counter](const auto& el){
+            cerr << "R: " << counter++ << "\t" << el << " with polar coordinates: " << el.polarRelative.first << ", " << el.polarRelative.second << endl;
         });
     assert(field[1].position.first == 29 && field[1].position.second == 27);
     // also remove the base from counting
@@ -173,15 +165,17 @@ int main()
         {
             char val;
             cin >> val;
+            cerr.width(5);
             if (pos == 29 && line == 28)
                 cerr << 'X';
             else
-                cerr << val;
+                cerr << (val == '#' ? to_string(count) : ".");
             if (val == '#')
                 asteroids.push_back({count++, pll{pos, line}, pdd{}, 0});
         }
         cerr << endl;
     }
+    cerr.width(0);
 
     countVisibility(asteroids);
 
@@ -189,9 +183,9 @@ int main()
     cout << "The best location is " << result.position.first << ", " << result.position.second << endl;
     cout << "The total number of asteroid that can be detected is " << result.inRange << endl;
 
-    //for_each(result.first.cbegin(), result.first.cend(), [](const auto& el){ cout << el << ", "; });
     const long place = 200;
-    deployLaser(asteroids, result.id);
+    const long id = result.id;
+    deployLaser(asteroids, id);
     auto answer = simulateDistruction(asteroids, place);
     cout << "The " << place << " asteroid to be vaporized is at " << answer.first << ", " << answer.second << endl;
     cout << "The required math X*100+Y = " << answer.first*100 + answer.second << endl;
