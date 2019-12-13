@@ -58,6 +58,7 @@ struct IntCodeComputer
     static void halt() { halting = true; };
     static long relativeBase;
 
+    bool pausable{false};
     enum State {
         Running,
         Paused,
@@ -67,6 +68,8 @@ struct IntCodeComputer
     string name {};
 
     map<OpcodeInstruction, CmdExecutorPtr> instructionSet{};
+
+    // parameterMode of the current instruction
     vector<long> memory{};
     std::vector<long>::iterator instructionPos{};
 

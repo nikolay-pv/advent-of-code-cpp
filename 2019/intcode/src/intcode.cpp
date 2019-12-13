@@ -88,11 +88,11 @@ pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(long input)
         executor->second->getValue(result);
         instructionPos += executor->second->paramsLength();
         //cerrPrintMemory();
-        //if (result != nullopt)
-        //{
-        //    state = State::Paused;
-        //    break;
-        //}
+        if (pausable && result != nullopt)
+        {
+            state = State::Paused;
+            break;
+        }
     }
     if (result == nullopt)
     {
@@ -226,7 +226,9 @@ void Input::passValue(list<long>& vals)
 {
     if (vals.size() == 0)
     {
+#ifdef INTCODEDEBUG
         cerr << "Got empty list as input!" << endl;
+#endif
         inputValue = 0;
     }
     else
@@ -262,7 +264,7 @@ void Output::execute(vector<long>::iterator begginingOfInstruction,
     const long offset = 1;
     const long val = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
     output = val;
-    cout << "Outut: " << val << endl;
+    //cout << "Outut: " << val << endl;
 }
 
 // Jump_if_true
@@ -372,7 +374,9 @@ long Halt::paramsLength() { return 0; }
 void Halt::execute(vector<long>::iterator, vector<long>&)
 {
     IntCodeComputer::halt();
+#ifdef INTCODEDEBUG
     cerr << "Halting" << endl;
+#endif
 }
 
 
