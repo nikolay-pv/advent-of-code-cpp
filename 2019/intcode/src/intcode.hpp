@@ -84,7 +84,7 @@ struct IntCodeComputer
     void setPhase(long input) { cache.push_back(input); };
     long getMemoryHead() const { return memory[0]; };
 
-    pair<long, State> runningLoop(long input);
+    pair<long, State> runningLoop(optional<long> input);
     optional<OpcodeInstruction> getCurrentOpcode();
 
 private:

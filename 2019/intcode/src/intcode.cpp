@@ -70,12 +70,13 @@ void IntCodeComputer::cerrPrintCache() const
     cerr << endl;
 }
 
-pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(long input)
+pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(optional<long> input)
 {
     if (state == Halt)
-        return { input, state };
+        return { input == nullopt ? -42 : input.value(), state };
     state = Running;
-    cache.push_back(input);
+    if (input != nullopt)
+        cache.push_back(input.value());
     //cerrPrintMemory();
     long offset = 0;
     optional<long> result = nullopt;
@@ -104,7 +105,7 @@ pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(long input)
     if (result == nullopt)
     {
         //cout << "Houston, we have a problem!" << endl;
-        return {input, Halt};
+        return {input == nullopt ? -42 : input.value(), Halt};
     }
     if (state != State::Paused)
         state = State::Halt;

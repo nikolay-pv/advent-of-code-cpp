@@ -1,6 +1,7 @@
 #include <iostream>
 
 #include "intcode.hpp"
+#include "hull_painting_robot.hpp"
 
 using namespace std;
 
@@ -19,16 +20,12 @@ int main()
         cin >> separator;
     }
     IntCodeComputer computer{"", memory};
-    // register instructions
-    setUpInstructions(computer.instructionSet);
+    computer.pausable = true;
 
-    long output = 2;
-    IntCodeComputer::State state{};
+    PaintingRobot robot{computer};
+    const long painted{robot.paint()};
 
-    std::tie(output, state) = computer.runningLoop(output);
-
-    cout << "Produced BOOST keycode is " << output << endl;
-    //for_each(result.first.cbegin(), result.first.cend(), [](const auto& el){ cout << el << ", "; });
+    cout << "The robot paints at least once " << painted << " panels." << endl;
     return 0;
 }
 
