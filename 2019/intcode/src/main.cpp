@@ -22,7 +22,7 @@ int main()
     // register instructions
     setUpInstructions(computer.instructionSet);
 
-    long output = 1;
+    long output = 2;
     IntCodeComputer::State state{};
 
     std::tie(output, state) = computer.runningLoop(output);
