@@ -4,33 +4,28 @@
 
 using namespace std;
 
-using ll = long long;
-#define long ll
-
-////////////////////////////////////////////////////////////////////////////////
-// main
 int main()
 {
     int N;
     cin >> N;
 
-    IntCodeComputer computer{};
+    vector<long> memory;
     for(int input = 0; input != N; ++input)
     {
         long val;
         cin >> val;
-        computer.memory.push_back(val);
+        memory.push_back(val);
         char separator;
         cin >> separator;
     }
-    computer.setMemory();
+    IntCodeComputer computer{"", memory};
     // register instructions
     setUpInstructions(computer.instructionSet);
 
     long output = 1;
+    IntCodeComputer::State state{};
 
-    auto [out, state] = computer.runningLoop(output);
-    output = out;
+    std::tie(output, state) = computer.runningLoop(output);
 
     cout << "Produced BOOST keycode is " << output << endl;
     //for_each(result.first.cbegin(), result.first.cend(), [](const auto& el){ cout << el << ", "; });

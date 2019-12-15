@@ -3,11 +3,12 @@
 
 void simpleMemoryTestHelper(std::string message,
                             std::vector<long> input,
-                            std::vector<long> result)
+                            std::vector<long> result,
+                            long valInput = 0)
 {
     IntCodeComputer computer{message, input};
     setUpInstructions(computer.instructionSet);
-    computer.runningLoop(0);
+    computer.runningLoop(valInput);
     ASSERT_EQ(computer.memory, result);
 }
 
@@ -223,4 +224,11 @@ TEST(IntCodeComputerTest, AmplificationLoopDay7) {
         {9,7,8,5,6});
 }
 
+TEST(IntCodeComputerTest, RelativeModeDay9) {
+    simpleMemoryTestHelper(
+        "Test relative mode input and resizing",
+        {9,10,203,0,99},
+        {9,10,203,0,99, 0,0,0,0,0, 11},
+        11);
+}
 
