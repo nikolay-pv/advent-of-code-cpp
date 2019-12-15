@@ -58,7 +58,8 @@ void PaintingRobot::updatePosition(Rotation rotation)
 long PaintingRobot::paint()
 {
     IntCodeComputer::State brainState = IntCodeComputer::Running;
-    long painted = 0;
+    // the initial paint will happen anyway
+    long painted = 1;
     while(brainState != IntCodeComputer::Halt)
     {
         // get current panel color
@@ -76,5 +77,37 @@ long PaintingRobot::paint()
         // update the position
         updatePosition(static_cast<Rotation>(rotation));
     }
+    displayPainted();
     return painted;
 }
+
+void PaintingRobot::displayPainted() const
+{
+    // find max y min y
+    long minX{}, maxX{}, minY{}, maxY{};
+    for_each(panelMap.cbegin(), panelMap.cend(),
+            [&](const auto& el){
+                const pair<long, long> p = el.first;
+                minX = min(p.first,  minX);
+                maxX = max(p.first,  maxX);
+                minY = min(p.second, minY);
+                maxY = max(p.second, maxY);
+            });
+    const long linelen = abs(minX) + abs(maxX) + 1;
+    const long collen = abs(minY) + abs(maxY) + 1;
+    vector<char> result(linelen*collen, '.');
+    const pair<long, long> offset = {minX, maxY};
+    for_each(panelMap.cbegin(), panelMap.cend(),
+            [&](const auto& el){
+                pair<long, long> p{el.first.first - offset.first, el.first.second - offset.second};
+                result[-p.second*linelen + p.first] = el.second == PaintColor::Black ? '.' : '#';
+            });
+    for(int i = 0; i != result.size(); ++i)
+    {
+        if (i != 0 && i % linelen == 0)
+            cout << "\n";
+        cout << result[i];
+    }
+    cout << "\n";
+}
+

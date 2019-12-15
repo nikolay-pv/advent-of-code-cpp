@@ -39,10 +39,11 @@ public:
     bool paintCurrentPlate(PaintColor withColor);
     void updatePosition(Rotation);
     long paint();
+    void displayPainted() const;
 
 public:
     FacingDirection direction = Up;
-    map<pair<long, long>, PaintColor> panelMap{};
+    map<pair<long, long>, PaintColor> panelMap{{{0, 0}, PaintColor::White}};
     pair<long, long> position{0, 0};
 };
 
