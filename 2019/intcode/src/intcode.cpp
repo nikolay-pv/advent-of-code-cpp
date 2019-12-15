@@ -36,6 +36,25 @@ optional<OpcodeInstruction> castToOpcode(long value)
 bool IntCodeComputer::halting = false;
 long IntCodeComputer::relativeBase = 0;
 
+IntCodeComputer::IntCodeComputer()
+{
+    halting = false;
+    setUpInstructions(this->instructionSet);
+};
+IntCodeComputer::IntCodeComputer(vector<long> mem)
+    : memory{std::move(mem)}
+{
+    halting = false;
+    instructionPos = memory.begin();
+    setUpInstructions(this->instructionSet);
+};
+IntCodeComputer::IntCodeComputer(string nn, vector<long> mem)
+    : IntCodeComputer(std::move(mem))
+{
+    name = std::move(nn);
+};
+
+
 void IntCodeComputer::cerrPrintMemory() const
 {
     cerrPrintCache();
@@ -50,18 +69,6 @@ void IntCodeComputer::cerrPrintCache() const
     for_each(cache.cbegin(), cache.cend(), [](const auto& el){ cerr << el << ", ";});
     cerr << endl;
 }
-
-optional<long> IntCodeComputer::popValueFromCache()
-{
-    if (cache.size() == 0)
-    {
-        //cerr << "No input is provided!" << endl;
-        return nullopt;
-    }
-    long val = cache.front();
-    cache.erase(cache.begin());
-    return val;
-};
 
 pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(long input)
 {
@@ -283,7 +290,7 @@ void Output::execute(vector<long>::iterator begginingOfInstruction,
     const long offset = 1;
     const long val = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
     output = val;
-    cout << "Outut: " << val << endl;
+    //cout << "Output: " << val << endl;
 }
 
 // Jump_if_true

@@ -58,50 +58,38 @@ struct IntCodeComputer
     static void halt() { halting = true; };
     static long relativeBase;
 
+    IntCodeComputer();
+    IntCodeComputer(vector<long> mem);
+    IntCodeComputer(string nn, vector<long> mem);
+
+    // config and states
     bool pausable{false};
     enum State {
         Running,
         Paused,
         Halt
     };
-    State state = Running;
-    string name {};
+    State state{Running};
 
-    map<OpcodeInstruction, CmdExecutorPtr> instructionSet{};
+    string name{};
 
-    // parameterMode of the current instruction
     vector<long> memory{};
     std::vector<long>::iterator instructionPos{};
-
     list<long> cache{};
+
+    map<OpcodeInstruction, CmdExecutorPtr> instructionSet{};
+    // parameterMode of the current instruction
     vector<ParamMode> parameterMode{};
 
-    void setMemory() { instructionPos = memory.begin(); };
     void setPhase(long input) { cache.push_back(input); };
-    optional<long> popValueFromCache();
-
     long getMemoryHead() const { return memory[0]; };
+
     pair<long, State> runningLoop(long input);
     optional<OpcodeInstruction> getCurrentOpcode();
 
+private:
     void cerrPrintMemory() const;
     void cerrPrintCache() const;
-
-    IntCodeComputer()
-    {
-        halting = false;
-    };
-    IntCodeComputer(vector<long> mem)
-        : memory{std::move(mem)}
-    {
-        halting = false;
-        setMemory();
-    };
-    IntCodeComputer(string nn, vector<long> mem)
-        : IntCodeComputer(std::move(mem))
-    {
-        name = std::move(nn);
-    };
 };
 
 
