@@ -7,6 +7,9 @@
 #include <list>
 #include <memory>
 #include <cmath>
+#include <numeric>
+#include <sstream>
+
 using namespace std;
 
 struct Body
@@ -14,6 +17,7 @@ struct Body
     valarray<long> position{0, 0, 0};
     valarray<long> velocity{0, 0, 0};
 
+    Body() = default;
     explicit Body(const std::string& input)
     {
         size_t equal{}, comma{};
@@ -39,11 +43,43 @@ struct Body
     {
         return calculateKineticEnergy() * calculatePotentialEnergy();
     }
-
 };
+
+std::ostream& operator<<(std::ostream& os, const Body& obj)
+{
+    assert(obj.position.size() == 3 && obj.velocity.size() == 3 );
+    //pos=<x=-1, y=  0, z= 2>, vel=<x= 0, y= 0, z= 0>
+    os << "pos= <x=" << obj.position[0] << ", y= " << obj.position[1] << ", z= " << obj.position[2] << ">, ";
+    os << "vel= <x=" << obj.velocity[0] << ", y= " << obj.velocity[1] << ", z= " << obj.velocity[2] << ">";
+    return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const valarray<long>& obj)
+{
+    os << obj[0] << ", " << obj[1] << ", " << obj[2] << ", " << obj[3];
+    return os;
+}
 
 struct NbodySystem
 {
+    enum Coordinate : long
+    {
+        X = 0,
+        Y = 1,
+        Z = 2
+    };
+
+    string getHashedData(Coordinate coord)
+    {
+        stringstream ss;
+        for_each(bodies.cbegin(), bodies.cend(),
+                [&ss, &coord](auto const& el)
+                {
+                    ss << el.position[static_cast<long>(coord)] << "_";
+                    ss << el.velocity[static_cast<long>(coord)] << "_";
+                });
+        return ss.str();
+    }
 
     void applyGravity(Body& first, Body& second)
     {
@@ -90,6 +126,16 @@ struct NbodySystem
         cout << "\n";
     }
 
+    long calculateTotalEnergy()
+    {
+        long totalEnergy{};
+        for_each(bodies.cbegin(), bodies.cend(),
+                [&](const auto& body){
+                    totalEnergy += body.calculateTotalEnergy();
+                });
+        return totalEnergy;
+    }
+
     void printCurrentEnergy(long iteration)
     {
         cout << "Energy after " << iteration << " steps:\n";
@@ -116,17 +162,41 @@ struct NbodySystem
         }
     }
 
+    void curryCuriousSimulation()
+    {
+        printCurrentState(0);
+        vector<set<string>> history(3);
+        for(int j = 0; j != 3; ++j)
+            history[j].insert(getHashedData(static_cast<Coordinate>(j)));
+        vector<long> counts(3, 0);
+        long iteration = 0;
+        long stopper = 3;
+        do
+        {
+            applyGravity();
+            applyVelocity();
+            ++iteration;
+            for(int j = 0; j != 3; ++j)
+            {
+                if (counts[j] != 0)
+                    continue;
+                auto [it, isInserted] = history[j].insert(getHashedData(static_cast<Coordinate>(j)));
+                if (isInserted)
+                    continue;
+                counts[j] = iteration;
+                --stopper;
+            }
+        } while(stopper != 0);
+        printCurrentState(iteration);
+        for_each(counts.cbegin(), counts.cend(), [](const auto& el){ cerr << el << ", ";});
+        long result = counts[0];
+        for(int i = 1; i != counts.size(); ++i)
+            result = lcm(result, counts[i]);
+        cout << "lcm is " << result << "\n";
+    }
+
     vector<Body> bodies{};
 };
-
-std::ostream& operator<<(std::ostream& os, const Body& obj)
-{
-    assert(obj.position.size() == 3 && obj.velocity.size() == 3 );
-    //pos=<x=-1, y=  0, z= 2>, vel=<x= 0, y= 0, z= 0>
-    os << "pos= <x=" << obj.position[0] << ", y= " << obj.position[1] << ", z= " << obj.position[2] << ">, ";
-    os << "vel= <x=" << obj.velocity[0] << ", y= " << obj.velocity[1] << ", z= " << obj.velocity[2] << ">";
-    return os;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 // main
@@ -142,17 +212,16 @@ int main()
     {
         std::string input;
         std::getline(cin, input);
-        system.bodies.push_back(Body(input));
+        system.bodies.emplace_back(input);
     }
+    // part 1
+    cout << "Part 1\n";
     const long numSteps = 1000;
     system.currySimulation(numSteps, 1);
     system.printCurrentEnergy(numSteps);
-    //const long place = 200;
-    //const long id = result.id;
-    //deployLaser(asteroids, id);
-    //auto answer = simulateDistruction(asteroids, place);
-    //cout << "The " << place << " asteroid to be vaporized is at " << answer.first << ", " << answer.second << endl;
-    //cout << "The required math X*100+Y = " << answer.first*100 + answer.second << endl;
+    // part 2
+    cout << "Part 2\n";
+    system.curryCuriousSimulation();
     return 0;
 }
 
