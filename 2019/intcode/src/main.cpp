@@ -2,6 +2,7 @@
 
 #include "intcode.hpp"
 #include "hull_painting_robot.hpp"
+#include "arcade_cabinet.hpp"
 
 using namespace std;
 
@@ -22,10 +23,15 @@ int main()
     IntCodeComputer computer{"", memory};
     computer.pausable = true;
 
-    PaintingRobot robot{computer};
-    const long painted{robot.paint()};
+    //PaintingRobot robot{computer};
+    //const long painted{robot.paint()};
 
-    cout << "The robot paints at least once " << painted << " panels." << endl;
+    //cout << "The robot paints at least once " << painted << " panels." << endl;
+
+    ArcadeCabinet ac{computer};
+    ac.run();
+    ac.flushOuptut();
+    cout << "The arcade cabinet prints at least " << ac.getBlocksCount() << " blocks." << endl;
     return 0;
 }
 
