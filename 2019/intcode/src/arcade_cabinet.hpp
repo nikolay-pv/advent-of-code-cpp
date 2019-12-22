@@ -23,12 +23,18 @@ public:
 
     ArcadeCabinet(IntCodeComputer&);
 
-public:
-    void run();
-    long getBlocksCount() const;
-    void flushOuptut() const;
+private:
+    void insertDate(std::vector<long>& data);
 
 public:
+    void run(optional<long> coins);
+    long getBlocksCount() const;
+    void flushOuptut(bool getBack) const;
+
+    pair<long, long> ballPos{};
+    pair<long, long> paddlePos{};
+private:
     map<pair<long, long>, Tile> theMap{};
+    long score = 0;
 };
 

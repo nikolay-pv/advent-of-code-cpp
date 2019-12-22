@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cmath>
 
 #include "intcode.hpp"
 #include "hull_painting_robot.hpp"
@@ -29,9 +30,16 @@ int main()
     //cout << "The robot paints at least once " << painted << " panels." << endl;
 
     ArcadeCabinet ac{computer};
-    ac.run();
-    ac.flushOuptut();
-    cout << "The arcade cabinet prints at least " << ac.getBlocksCount() << " blocks." << endl;
+    auto player = [&ac]()
+            {
+                const long diff{ac.ballPos.first - ac.paddlePos.first};
+                //cerr << "Diff: " << diff << endl;
+                return diff == 0 ? 0 : std::copysign(1, diff);
+            };
+    static_cast<Input*>(computer.instructionSet[OpcodeInstruction::input].get())->setCallBack(player);
+    const long numberOfCoins = 2;
+    ac.run(numberOfCoins);
+    //cout << "The arcade cabinet prints at least " << ac.getBlocksCount() << " blocks." << endl;
     return 0;
 }
 

@@ -127,8 +127,10 @@ public:
 
 class Input : public CmdExecutor
 {
+    std::optional<std::function<long()>> callBack{nullopt};
     long inputValue = 0;
 public:
+    void setCallBack(std::function<long()> nCallBack);
     void passValue(list<long>& vals) override;
     long paramsLength() override;
     void execute(vector<long>::iterator begginingOfInstruction,

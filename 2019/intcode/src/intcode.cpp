@@ -249,9 +249,22 @@ void Multiply::execute(vector<long>::iterator begginingOfInstruction,
 }
 
 // Input
+void Input::setCallBack(std::function<long()> nCallBack)
+{
+    callBack = nCallBack;
+}
+
 void Input::passValue(list<long>& vals)
 {
-    if (vals.size() == 0)
+    if (callBack != nullopt)
+    {
+        inputValue = callBack.value()();
+#ifdef INTCODEDEBUG
+        cerr << "Calling the function from input!" << endl;
+        assert(vals.size() == 0);
+#endif
+    }
+    else if (vals.size() == 0)
     {
 #ifdef INTCODEDEBUG
         cerr << "Got empty list as input!" << endl;
