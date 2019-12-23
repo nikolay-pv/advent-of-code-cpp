@@ -1,201 +1,184 @@
 #include <iostream>
 #include <vector>
-#include <array>
-#include <valarray>
+//#include <array>
+//#include <valarray>
 #include <map>
 #include <set>
-#include <list>
-#include <memory>
+//#include <list>
+//#include <memory>
 #include <cmath>
 #include <numeric>
 #include <sstream>
 
 using namespace std;
 
-struct Body
+struct GraphEdge;
+struct Element
 {
-    valarray<long> position{0, 0, 0};
-    valarray<long> velocity{0, 0, 0};
+    string name;
+    mutable long quantity;
+    bool visited = false;
 
-    Body() = default;
-    explicit Body(const std::string& input)
-    {
-        size_t equal{}, comma{};
-        for(int i = 0; i != 3; ++i)
-        {
-            equal = input.find('=', comma) + 1;
-            comma = input.find(',', equal);
-            position[i] = stol(input.substr(equal, comma - equal));
-        }
-    }
+    vector<GraphEdge*> parentsEdges{};
+    vector<GraphEdge*> childrenEdges{};
 
-    long calculatePotentialEnergy() const
-    {
-        return std::abs(position).sum();
-    }
-
-    long calculateKineticEnergy() const
-    {
-        return std::abs(velocity).sum();
-    }
-
-    long calculateTotalEnergy() const
-    {
-        return calculateKineticEnergy() * calculatePotentialEnergy();
-    }
+    friend bool operator >(const Element& l, const Element& r)
+    { return l.name > r.name; }
+    friend bool operator <(const Element& l, const Element& r)
+    { return l.name < r.name; }
+    friend bool operator==(const Element& l, const Element& r)
+    { return l.name == r.name; }
+    friend bool operator!=(const Element& l, const Element& r)
+    { return !(l == r); }
 };
 
-std::ostream& operator<<(std::ostream& os, const Body& obj)
+struct GraphEdge
 {
-    assert(obj.position.size() == 3 && obj.velocity.size() == 3 );
-    //pos=<x=-1, y=  0, z= 2>, vel=<x= 0, y= 0, z= 0>
-    os << "pos= <x=" << obj.position[0] << ", y= " << obj.position[1] << ", z= " << obj.position[2] << ">, ";
-    os << "vel= <x=" << obj.velocity[0] << ", y= " << obj.velocity[1] << ", z= " << obj.velocity[2] << ">";
+    static GraphEdge create(Element const& parent, Element const& child, long weight)
+    {
+        return GraphEdge{false, parent, child, weight};
+    }
+    bool visited = false;
+    Element const& parent;
+    Element const& child;
+    // requred quntity of child to produce the quantity of the parent
+    long requiredQuantity = {-1};
+
+    friend bool operator >(const GraphEdge& l, const GraphEdge& r)
+    { return l.parent.name > r.parent.name && l.child.name > r.child.name; }
+    friend bool operator <(const GraphEdge& l, const GraphEdge& r)
+    { return !(l.parent.name > r.parent.name); }
+    friend bool operator==(const GraphEdge& l, const GraphEdge& r)
+    { return l.parent.name == r.parent.name && l.child.name == r.child.name; }
+    friend bool operator!=(const GraphEdge& l, const GraphEdge& r)
+    { return !(l == r); }
+};
+
+std::istream& operator>>(std::istream& is, Element& obj)
+{
+    is >> obj.quantity;
+    is >> obj.name;
+    return is;
+}
+
+std::ostream& operator<<(std::ostream& os, const Element& obj)
+{
+    os << obj.quantity << " " << obj.name;
     return os;
 }
 
-std::ostream& operator<<(std::ostream& os, const valarray<long>& obj)
+std::ostream& operator<<(std::ostream& os, const GraphEdge& obj)
 {
-    os << obj[0] << ", " << obj[1] << ", " << obj[2] << ", " << obj[3];
+    os << "(p -> c): ";
+    os << obj.parent.quantity << " " << obj.parent.name;
+    os << " -" << obj.requiredQuantity << "-> ";
+    os << obj.child.quantity << " " << obj.child.name;
     return os;
 }
 
-struct NbodySystem
+struct SystemOfEquations
 {
-    enum Coordinate : long
-    {
-        X = 0,
-        Y = 1,
-        Z = 2
-    };
+    std::set<Element> elements{};
+    std::set<GraphEdge> edges{};
 
-    string getHashedData(Coordinate coord)
+    SystemOfEquations(std::vector<string>&& inputs)
     {
-        stringstream ss;
-        for_each(bodies.cbegin(), bodies.cend(),
-                [&ss, &coord](auto const& el)
-                {
-                    ss << el.position[static_cast<long>(coord)] << "_";
-                    ss << el.velocity[static_cast<long>(coord)] << "_";
+        map<Element, string> tmp_map{};
+        for_each(inputs.begin(), inputs.end(),
+                [&](std::string& input){
+                    auto oel = addResultElement(input);
+                    tmp_map.insert({std::move(oel), std::move(input)});
                 });
-        return ss.str();
+        elements.insert({"ORE", 1, false, {}, {}});
+        for_each(tmp_map.begin(), tmp_map.end(),
+                [&](auto& pairs){
+                    addGraphConnections(pairs.first, std::move(pairs.second));
+                });
     }
 
-    void applyGravity(Body& first, Body& second)
+    Element addResultElement(std::string const& input)
     {
-        for(int coord = 0; coord != 3; ++coord)
+        auto start = find(input.crbegin(), input.crend(), '>');
+        auto result = input.substr(std::distance(start, input.crend()) + 1);
+        stringstream is{result};
+        Element res;
+        is >> res;
+        elements.insert(res);
+        return std::move(res);
+    }
+
+    void addGraphConnections(Element const& out, std::string&& input)
+    {
+        auto res = elements.find(out);
+        if (res == elements.end())
         {
-            if(second.position[coord] < first.position[coord])
-            {
-                ++second.velocity[coord];
-                --first.velocity[coord];
-            }
-            else if(second.position[coord] > first.position[coord])
-            {
-                --second.velocity[coord];
-                ++first.velocity[coord];
-            }
+            cerr << "Boom!" << endl;
+            return;
+        }
+
+        auto start = find(input.crbegin(), input.crend(), '>');
+        auto firstpart = input.substr(0, input.size() - std::distance(input.crbegin(), start) - 3);
+        istringstream is{firstpart};
+        while(is.rdstate() == std::ios_base::goodbit)
+        {
+            Element component;
+            is >> component;
+            if (component.name.back() == ',')
+                component.name.pop_back();
+            auto stored_comp = elements.find(component);
+            assert(stored_comp != elements.end());
+            auto e = edges.insert(GraphEdge::create(*res, *stored_comp, component.quantity));
+            //cerr << "Added edge " << *e.first << endl;
+            const_cast<Element&>(*res).childrenEdges.push_back(const_cast<GraphEdge*>(&(*e.first)));
+            const_cast<Element&>(*stored_comp).parentsEdges.push_back(const_cast<GraphEdge*>(&(*e.first)));
         }
     }
 
-    void applyGravity()
+    void simplifyEdges(Element& node)
     {
-        for(int i = 0; i != bodies.size(); ++i)
+        if (node.visited)
+            return;
+        // sum all parent branches weights if visited
+        long totalQuantity{};
+        for(auto& edge : node.parentsEdges)
         {
-            Body& first = bodies[i];
-            for(int j = i + 1; j != bodies.size(); ++j)
-                applyGravity(first, bodies[j]);
+            // too early to make calculations
+            if (!edge->visited)
+                return;
+            totalQuantity += edge->requiredQuantity;
         }
-    }
-
-    void applyVelocity()
-    {
-        for_each(bodies.begin(), bodies.end(),
-                [](auto& body){
-                    body.position += body.velocity;
-                });
-    }
-
-    void printCurrentState(long iteration)
-    {
-        cout << "After " << iteration << " steps:\n";
-        for_each(bodies.cbegin(), bodies.cend(),
-                [](const auto& body){
-                    cout << body << "\n";
-                });
-        cout << "\n";
-    }
-
-    long calculateTotalEnergy()
-    {
-        long totalEnergy{};
-        for_each(bodies.cbegin(), bodies.cend(),
-                [&](const auto& body){
-                    totalEnergy += body.calculateTotalEnergy();
-                });
-        return totalEnergy;
-    }
-
-    void printCurrentEnergy(long iteration)
-    {
-        cout << "Energy after " << iteration << " steps:\n";
-        long totalEnergy{};
-        cout << "Sum of total energy: ";
-        for_each(bodies.cbegin(), bodies.cend(),
-                [&](const auto& body){
-                    const long tmp = body.calculateTotalEnergy();
-                    cout << tmp << " + ";
-                    totalEnergy += tmp;
-                });
-        cout << " = " << totalEnergy << "\n";
-    }
-
-    void currySimulation(long forSteps, long printIncrement = 10)
-    {
-        printCurrentState(0);
-        for(long iteration = 1; iteration != forSteps + 1; ++iteration)
+        // find multiplier and increase weight of children
+        // and mark them visited
+        long multiplier = ceil(totalQuantity / double(node.quantity));
+        if (multiplier == 0)
+            multiplier = 1;
+        for(auto& edge : node.childrenEdges)
         {
-            applyGravity();
-            applyVelocity();
-            if(iteration % printIncrement == 0)
-                printCurrentState(iteration);
+            edge->requiredQuantity *= multiplier;
+            edge->visited = true;
         }
+        // push recursion down the edge
+        node.visited = true;
+        for_each(node.childrenEdges.begin(), node.childrenEdges.end(),
+                [&](auto& edge){
+                    assert(edge->parent == node);
+                    simplifyEdges(const_cast<Element&>(edge->child));
+                });
     }
 
-    void curryCuriousSimulation()
+    long solve()
     {
-        printCurrentState(0);
-        vector<set<string>> history(3);
-        for(int j = 0; j != 3; ++j)
-            history[j].insert(getHashedData(static_cast<Coordinate>(j)));
-        vector<long> counts(3, 0);
-        long iteration = 0;
-        long stopper = 3;
-        do
-        {
-            applyGravity();
-            applyVelocity();
-            ++iteration;
-            for(int j = 0; j != 3; ++j)
-            {
-                if (counts[j] != 0)
-                    continue;
-                auto [it, isInserted] = history[j].insert(getHashedData(static_cast<Coordinate>(j)));
-                if (isInserted)
-                    continue;
-                counts[j] = iteration;
-                --stopper;
-            }
-        } while(stopper != 0);
-        printCurrentState(iteration);
-        for_each(counts.cbegin(), counts.cend(), [](const auto& el){ cerr << el << ", ";});
-        long result = counts[0];
-        for(int i = 1; i != counts.size(); ++i)
-            result = lcm(result, counts[i]);
-        cout << "lcm is " << result << "\n";
+        auto fuel = find_if(elements.begin(), elements.end(), [](auto& el){ return el.name == "FUEL"; });
+        assert(fuel != elements.end());
+        // no changes in names
+        simplifyEdges(const_cast<Element&>(*fuel));
+        auto ore = find_if(elements.begin(), elements.end(), [](auto& el){ return el.name == "ORE"; });
+        assert(ore != elements.end());
+        return std::accumulate(ore->parentsEdges.cbegin(), ore->parentsEdges.cend(), 0,
+                [](long a, auto& b){
+                    return a + b->requiredQuantity;
+                });
     }
-
-    vector<Body> bodies{};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -204,24 +187,23 @@ int main()
 {
     int N;
     cin >> N;
-    char newline;
-    cin >> newline;
+    string garbage;
+    std::getline(cin, garbage);
 
-    NbodySystem system{};
+    vector<string> inputs{};
     for(long line = 0; line != N; ++line)
     {
         std::string input;
         std::getline(cin, input);
-        system.bodies.emplace_back(input);
+        inputs.push_back(std::move(input));
     }
+    auto soe = SystemOfEquations(std::move(inputs));
+    const long answer{soe.solve()};
     // part 1
     cout << "Part 1\n";
-    const long numSteps = 1000;
-    system.currySimulation(numSteps, 1);
-    system.printCurrentEnergy(numSteps);
+    cout << "We need " << answer << " ORE.\n";
     // part 2
     cout << "Part 2\n";
-    system.curryCuriousSimulation();
     return 0;
 }
 
