@@ -184,6 +184,7 @@ struct SystemOfEquations
             //cerr << "\t " << *edge << endl;
             edge->requiredQuantity *= multiplier;
             edge->visited = true;
+            //cerr << "\t " << *edge << endl;
         }
         // push recursion down the edge
         node->visited = true;
@@ -207,13 +208,9 @@ struct SystemOfEquations
         // no changes in names
         simplifyEdges(fuel);
         fuel->parentsEdges.clear();
-        //cerr << "Summing up ";
-        long long answ =  std::accumulate(ore->parentsEdges.cbegin(), ore->parentsEdges.cend(), 0,
-                [](long long a, auto& b){
-                    //cerr << b->requiredQuantity << " ";
-                    return a + b->requiredQuantity;
-                });
-        //cerr << endl;
+        long long answ = 0;
+        for_each(ore->parentsEdges.cbegin(), ore->parentsEdges.cend(),
+                [&](auto& edge){ answ += edge->requiredQuantity; });
         resetEquations();
         return answ;
     }
@@ -237,37 +234,38 @@ int main()
     }
     auto soe = SystemOfEquations(std::move(inputs));
     SystemOfEquations busoe = soe;
-    long long answer{soe.solve(1)};
     // part 1
     cout << "Part 1\n";
+    long long answer{soe.solve(1)};
     cout << "We need " << answer << " ORE.\n";
     // part 2
     cout << "Part 2\n";
     const long long availableOre = 1000000000000;
     long long lowerfuel{availableOre / answer};
-    long long upperfuel = 1.2 * availableOre / answer;
-    long long fuel = lowerfuel;
+    long long fuel{lowerfuel};
+    long long upperfuel = 1.2 * lowerfuel;
     long long differnece{-1};
     while (differnece != 0)
     {
+        //cerr << "L U" << lowerfuel << " " << upperfuel << endl;
         answer = soe.solve(fuel);
-        cerr << "Answ L a U " << answer << " " << lowerfuel << " " <<  fuel << " " <<  upperfuel << endl;
-        //
-        differnece = (upperfuel - lowerfuel)/2;
         if (answer == availableOre)
             break;
         else if (answer < availableOre)
         {
             lowerfuel = fuel;
+            differnece = (upperfuel - lowerfuel)/2;
             fuel += differnece;
         }
         else if (answer > availableOre)
         {
             upperfuel = fuel;
+            differnece = round((upperfuel - lowerfuel)/2.0);
             fuel -= differnece;
         }
     }
-    cout << "The max amout of fuel is " << fuel << "\n";
+
+    cout << "The max amout of fuel is " << fuel << " (" << answer << ")\n";
     return 0;
 }
 
