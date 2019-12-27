@@ -44,6 +44,7 @@ int main()
 
     RepairDroid r2d2{computer};
     r2d2.searchOxygen();
+    r2d2.calculateTimeToFill();
     return 0;
 }
 

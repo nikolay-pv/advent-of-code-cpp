@@ -30,6 +30,7 @@ RepairDroid::RepairDroid(IntCodeComputer& computer)
     // create initial position
     coord defpos{0, 0};
     auto cc = make_shared<Cell>(defpos, 'X');
+    cc->distance = 0;
     current = cc;
     origin = cc;
     theMap.insert(cc);
@@ -113,23 +114,84 @@ void RepairDroid::searchOxygen()
             auto nc = getNewCell(current, currentDirection);
             nc->mark = getGlyph(static_cast<OutputDroid>(output));
             auto ntile = theMap.insert(nc);
+            (*ntile.first)->connectivity.insert(current);
+            current->connectivity.insert(*ntile.first);
             //if (!ntile.second)
             //    (*ntile.first)->returnToInitial = nc->returnToInitial;
+            (*ntile.first)->distance = min((*ntile.first)->distance, current->distance + 1);
             current = *ntile.first;
         }
         else if (output == OutputDroid::Oxygen)
         {
             auto nc = getNewCell(current, currentDirection);
             nc->mark = getGlyph(static_cast<OutputDroid>(output));
-            current = nc;
-            theMap.insert(nc);
-            oxygen = nc;
+            auto ntile = theMap.insert(nc);
+            (*ntile.first)->distance = min((*ntile.first)->distance, current->distance + 1);
+            (*ntile.first)->connectivity.insert(current);
+            current->connectivity.insert(*ntile.first);
+            current = *ntile.first;
+            oxygen = *ntile.first;
             //break;
         }
         printMap(true);
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     printMap(false);
+    cout << "Minimal distance from X to O is " << oxygen->distance << endl;
+}
+
+namespace {
+
+void runOverNodes(CellPtr const& node)
+{
+    long newDist{node->distance + 1};
+    for_each(node->connectivity.cbegin(), node->connectivity.cend(),
+            [&](const auto& cc){
+                cc->distance = min(cc->distance, newDist);
+            });
+    auto tmp{node->connectivity};
+    node->connectivity.clear();
+    for_each(tmp.cbegin(), tmp.cend(), [&](auto const& cc){ runOverNodes(cc); });
+}
+
+} // namespace
+
+void RepairDroid::calculateTimeToFill()
+{
+    for_each(theMap.begin(), theMap.end(), [&](auto& cc){
+            if (cc->mark == '.')
+                cc->distance = 1000000;
+            });
+    oxygen->distance = 0;
+
+    runOverNodes(oxygen);
+
+    long total{};
+    for_each(theMap.cbegin(), theMap.cend(), [&](const auto& cc){
+            if (cc->mark != '#')
+                total = max(total, cc->distance);
+            });
+    printOxygenSimulation(total);
+}
+
+void RepairDroid::printOxygenSimulation(long total) const
+{
+    vector<vector<CellPtr>> forPrint(total + 1);
+    for_each(theMap.cbegin(), theMap.cend(), [&](const auto& cc){
+            if (cc->mark != '#')
+                forPrint[cc->distance].push_back(cc);
+            });
+    for(int i = 0; i <= total; ++i)
+    {
+        for_each(forPrint[i].begin(), forPrint[i].end(), [](auto& cc){ cc->mark='O'; });
+        cout << "Time " << i << " m" << endl;
+        printMap(true);
+        cout << "\033[" << 1 << "A";
+        std::this_thread::sleep_for(std::chrono::milliseconds(15));
+    }
+    cout << "Time " << total << " m" << endl;
+    printMap(false);
+    cout << "Filling all locations with oxygen will take " << total << endl;
 }
 
 void RepairDroid::printMap(bool getBack) const

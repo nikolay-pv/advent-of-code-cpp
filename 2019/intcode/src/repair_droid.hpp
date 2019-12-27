@@ -34,6 +34,8 @@ struct Cell
     std::list<Direction> unVisitedDirs{
                 Direction::North, Direction::South,
                 Direction::West, Direction::East};
+    long distance{10000000};
+    std::set<shared_ptr<Cell>> connectivity{};
     friend bool operator >(const Cell& l, const Cell& r)
     { return l.pos.first > r.pos.first && l.pos.second && l.pos.second; }
     friend bool operator <(const Cell& l, const Cell& r)
@@ -67,11 +69,9 @@ public:
 
 public:
 
-    //PaintColor getCurrentPlateColor() const;
-    // returns true if the first time painting
-    //bool paintCurrentPlate(PaintColor withColor);
-    //void updatePosition(Rotation);
     void searchOxygen();
+    void calculateTimeToFill();
+    void printOxygenSimulation(long steps) const;
     void printMap(bool getBack) const;
 
 public:
