@@ -139,9 +139,11 @@ public:
 
 class Output : public CmdExecutor
 {
+    std::optional<std::function<void(long)>> callBack{nullopt};
     // prevent modification of the cache
     optional<long> output = nullopt;
 public:
+    void setCallBack(std::function<void(long output)> nCallBack);
     void getValue(optional<long>& val) override;
     long paramsLength() override;
     void execute(vector<long>::iterator begginingOfInstruction,

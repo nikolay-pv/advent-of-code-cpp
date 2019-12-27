@@ -4,7 +4,8 @@
 #include "intcode.hpp"
 //#include "hull_painting_robot.hpp"
 //#include "arcade_cabinet.hpp"
-#include "repair_droid.hpp"
+//#include "repair_droid.hpp"
+#include "ascii.hpp"
 
 using namespace std;
 
@@ -42,9 +43,12 @@ int main()
     //ac.run(numberOfCoins);
     //cout << "The arcade cabinet prints at least " << ac.getBlocksCount() << " blocks." << endl;
 
-    RepairDroid r2d2{computer};
-    r2d2.searchOxygen();
-    r2d2.calculateTimeToFill();
+    //RepairDroid r2d2{computer};
+    //r2d2.searchOxygen();
+    //r2d2.calculateTimeToFill();
+
+    ascii::Ascii tower{computer};
+    tower.constructMap();
     return 0;
 }
 

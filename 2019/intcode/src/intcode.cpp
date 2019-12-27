@@ -293,8 +293,20 @@ void Input::execute(vector<long>::iterator begginingOfInstruction,
 }
 
 // Output
+void Output::setCallBack(std::function<void(long)> nCallBack)
+{
+    callBack = nCallBack;
+}
+
 void Output::getValue(optional<long>& val)
 {
+    if (callBack != nullopt && output != nullopt)
+    {
+        callBack.value()(output.value());
+#ifdef INTCODEDEBUG
+        cerr << "Calling the function from output!" << endl;
+#endif
+    }
     val = output;
 };
 long Output::paramsLength() { return 2; }
