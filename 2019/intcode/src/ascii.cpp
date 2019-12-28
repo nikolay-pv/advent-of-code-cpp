@@ -18,9 +18,35 @@ std::ostream& operator<<(std::ostream& os, const Cell& obj)
 Ascii::Ascii(IntCodeComputer& computer)
     : brain{computer}
 {
-    // register mover
+    const string main = "A,B,A,C,A,B,C,B,C,B\n";
+    const string A = "R,8,L,10,L,12,R,4\n";
+    const string B = "R,8,L,12,R,4,R,4\n";
+    const string C = "R,8,L,10,R,8\n";
+    const string graphics = "n\n";
+    this->inp = main + A + B + C + graphics;
+    // register input
+    auto input = [&]()
+        {
+            if (this->last_inp_pos == inp.size())
+                cerr << "Too greedy in the input" << endl;
+            cerr << "Feeding " << this->last_inp_pos << " " << inp[this->last_inp_pos] << endl;
+            return inp[this->last_inp_pos++];
+        };
+    static_cast<Input*>(brain.instructionSet[OpcodeInstruction::input].get())->setCallBack(input);
+
+    // register mapper
     auto output = [&](long output)
         {
+            if (this->lastOutput == newLine && this->lastOutput == output)
+                this->stop = true;
+            else
+                this->lastOutput = output;
+            if (output > 127 || this->stop)
+            {
+                cout << char(output);
+                this->dustCollector = output;
+                return;
+            }
             const char mark = output;
             if (mark == newLine)
             {
@@ -53,8 +79,8 @@ void Ascii::constructMap()
                 alignmentParam += el->pos.first*el->pos.second;
                 //cerr << el->pos.first << " * " << el->pos.second << " = " << el->pos.first*el->pos.second << endl;
             });
-    printMap(false);
-    cout << "The sum of the alignment parameters is " << alignmentParam << endl;
+    //printMap(false);
+    //cout << "The sum of the alignment parameters is " << alignmentParam << endl;
 }
 
 void Ascii::findIntersections()
@@ -66,7 +92,7 @@ void Ascii::findIntersections()
                 const coord right {pos.first + 1, pos.second};
                 const coord top   {pos.first, pos.second - 1};
                 const coord bottom{pos.first, pos.second + 1};
-                
+
                 valarray<bool> boolmap{false, false, false, false};
                 for_each(scafold.begin(), scafold.end(),
                         [&](auto& el){
@@ -78,6 +104,13 @@ void Ascii::findIntersections()
                 if (boolmap.min() != false)
                     this->intersections.insert(cc);
             });
+}
+
+void Ascii::notifyOthers()
+{
+    brain.memory[0] = 2;
+    constructMap();
+    cout << "The robot collected " << dustCollector << " of dust." << endl;
 }
 
 void Ascii::printMap(bool getBack) const

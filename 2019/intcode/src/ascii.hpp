@@ -51,6 +51,7 @@ public:
 public:
     void constructMap();
     void findIntersections();
+    void notifyOthers();
     void printMap(bool getBack) const;
 
 public:
@@ -59,5 +60,10 @@ public:
     set<CellPtr, CellPtrCmp> intersections{};
     coord position{0, 0};
     long width{100000};
+    long dustCollector{};
+    long last_inp_pos{};
+    string inp{};
+    char lastOutput{'.'};
+    bool stop{};
 };
 } // namespace ascii

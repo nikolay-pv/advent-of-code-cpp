@@ -48,7 +48,12 @@ int main()
     //r2d2.calculateTimeToFill();
 
     ascii::Ascii tower{computer};
-    tower.constructMap();
+    // Part 1
+    //cout << "Part 1\n";
+    //tower.constructMap();
+    // Part 2
+    cout << "Part 2\n";
+    tower.notifyOthers();
     return 0;
 }
 
