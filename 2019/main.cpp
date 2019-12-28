@@ -1,9 +1,10 @@
 #include <iostream>
 #include <vector>
 //#include <array>
-//#include <valarray>
+#include <valarray>
 #include <map>
 #include <set>
+#include <list>
 //#include <list>
 //#include <memory>
 #include <cmath>
@@ -12,33 +13,23 @@
 #include <optional>
 #include <chrono>
 #include <thread>
+#include <bitset>
 #include <queue>
 
 using namespace std;
 using coord = std::pair<long, long>;
 
-bool operator >(const coord& l, const coord& r)
-{ return l.first > r.first && l.second > r.second; }
-bool operator <(const coord& l, const coord& r)
-{ return !(l > r); }
-
-constexpr long maxDepth = 65;
-
 struct Cell;
 using CellPtr = shared_ptr<Cell>;
-
 struct Cell
 {
     Cell(coord const& p, char m)
         : pos{p}, mark{m}
     { }
 
-    coord pos{};
     char mark{' '};
-    long levelChange{};
-    string portal{};
+    coord pos{};
     std::set<CellPtr> connectivity{};
-    CellPtr portalCell{};
 
     friend bool operator >(const Cell& l, const Cell& r)
     { return l.pos.first > r.pos.first && l.pos.second && l.pos.second; }
@@ -50,246 +41,152 @@ struct Cell
     { return !(l == r); }
 };
 
-std::ostream& operator<<(std::ostream& os, const Cell& obj)
-{
-    os << "Cell: " << obj.pos.first << " " << obj.pos.second << " with mark " << obj.mark;
-    return os;
-}
-
-struct CellData
-{
-    CellData(CellPtr const& c, long l, long d)
-        : cell{c}, level{l}, distance{d}
-    {}
-
-    CellPtr cell;
-    //CellPtr comingFrom;
-    long level;
-    long distance;
-
-    friend bool operator <(const CellData& l, const CellData& r)
-    {
-        return l.cell == r.cell
-            ? l.level < r.level
-            : (l.cell->pos.first <= r.cell->pos.first || l.cell->pos.second <= r.cell->pos.second);
-    }
-};
-
-struct CellDataCmp {
-    bool operator()(const CellData& lhs, const CellData& rhs) const {
-        return lhs.level < rhs.level || lhs.distance < rhs.distance;
-        //return lhs.cell == rhs.cell ? lhs.level < rhs.level : lhs.distance < rhs.distance;
-    }
-};
-
 struct CellPtrCmp {
     bool operator()(const CellPtr& lhs, const CellPtr& rhs) const {
         return lhs->pos < rhs->pos;
     }
 };
 
-struct Torus
+std::ostream& operator<<(std::ostream& os, const Cell& obj)
 {
-    CellPtr enter{};
-    CellPtr exit{};
-    vector<CellPtr> theMap{};
-    set<CellPtr, CellPtrCmp> walkable{};
-    long level{0};
+    os << "Cell: " << obj.pos.first << " " << obj.pos.second << " with mark " << obj.mark;
+    return os;
+}
 
-    pair<coord, string> processPortals(vector<string>& inputs,
-            long x, long y)
+
+struct KeyChain
+{
+    std::bitset<26> letters{};
+    KeyChain() = default;
+    KeyChain(string availableKeys)
     {
-        string key{inputs[y][x]};
-        const coord initial{x, y};
-        coord end{};
-        coord portalPosition{};
-
-        long inc{1};
-        auto boundcheck = [&](long x, long y){ return x >= 0 && x >=0 && y < inputs.size() && x < inputs[0].size(); };
-        if (boundcheck(x, y+inc) && isalpha(inputs[y + inc][x])) {
-            key += inputs[y + inc][x];
-            end = {x, y + inc};
-        } else if(boundcheck(x + inc, y) && isalpha(inputs[y][x + inc])) {
-            key += inputs[y][x + inc];
-            end = {x + inc, y};
-        } else {
-            return {};
-        }
-        const coord diff{end.first - initial.first, end.second - initial.second};
-        const coord preInit{initial.first - diff.first, initial.second - diff.second};
-        const coord postEnd{end.first + diff.first, end.second + diff.second};
-        if (boundcheck(preInit.first, preInit.second) && inputs[preInit.second][preInit.first] == '.')
-            portalPosition = preInit;
-        else if (boundcheck(postEnd.first, postEnd.second) && inputs[postEnd.second][postEnd.first] == '.')
-            portalPosition = postEnd;
-        return {portalPosition, key};
+        letters.flip();
+        for_each(availableKeys.begin(), availableKeys.end(),
+                [&](auto& k){
+                    letters.flip(k - 'a');
+                });
+    }
+    KeyChain(set<CellPtr, CellPtrCmp> availableKeys)
+    {
+        letters.flip();
+        for_each(availableKeys.begin(), availableKeys.end(),
+                [&](auto& k){
+                    letters.flip(k->mark - 'a');
+                });
     }
 
-    void constructMap(vector<string>& inputs)
+    void addKey(char k) { letters.set(k - 'a'); }
+    bool hasKey(char k) const { return letters[tolower(k) - 'a']; }
+    bool canOpen(char door) const { return letters[door - 'A']; }
+    bool allCollected() const { return letters.all(); }
+
+    friend bool operator==(const KeyChain& l, const KeyChain& r)
+    { return l.letters == r.letters; }
+    friend bool operator <(const KeyChain& l, const KeyChain& r)
+    { return l.letters.to_string() < r.letters.to_string(); }
+};
+
+bool isDoor(CellPtr const& el) { return isalpha(el->mark) && isupper(el->mark); }
+bool isKey(CellPtr const& el) { return isalpha(el->mark) && islower(el->mark); }
+
+struct CellData
+{
+    CellData(CellPtr c, long d, KeyChain k)
+        : cell{c}, distance{d}, collectedKeys{k}
+    { }
+    CellPtr cell{};
+    long distance{};
+    KeyChain collectedKeys{};
+
+    friend bool operator <(const CellData& l, const CellData& r)
+    { return l.cell == r.cell ? l.distance < r.distance : l.cell < r.cell; }
+};
+
+struct Vault
+{
+    void generateMap(std::vector<string> const& inputs)
     {
-        map<string, pair<coord, coord>> portals{};
         for(int i = 0; i != inputs.size(); ++i)
         {
-            auto input = inputs[i];
-            for(int j = 0; j != input.size(); ++j)
-            {
-                auto nc = make_shared<Cell>(coord{j, i}, input[j]);
-                theMap.push_back(nc);
-                if (nc->mark == '.')
-                {
-                    walkable.insert(nc);
-                }
-                else if (isalpha(nc->mark))
-                {
-                    auto p = processPortals(inputs, j, i);
-                    if (p.second.empty())
-                        continue;
-                    auto t = portals.insert({p.second, {p.first, coord{0,0}}});
-                    if (!t.second && t.first->second.first != p.first)
-                        t.first->second.second = p.first;
-                }
-            }
+            long x{};
+            for_each(inputs[i].cbegin(), inputs[i].cend(),
+                    [&](auto const& ch){
+                        coord p{x++, i};
+                        auto nc = make_shared<Cell>(p, ch);
+                        this->theMap.push_back(nc);
+                        if (ch != '#')
+                            walkable.push_back(nc);
+                        if (ch == '@')
+                        {
+                            start = nc;
+                        } else if(isalpha(ch) && islower(ch)) {
+                            keys.insert(nc);
+                        }
+                    });
         }
-        const long width = inputs[0].size();
-        const coord midpoint{width/2, inputs.size()/2};
-        for(const auto& portal : portals)
-        {
-            const long offF = portal.second.first.first + portal.second.first.second * width;
-            const long offS = portal.second.second.first + portal.second.second.second * width;
-            const coord f{abs(portal.second.first.first - midpoint.first),
-                          abs(portal.second.first.second - midpoint.second)};
-            const coord s{abs(portal.second.second.first - midpoint.first),
-                          abs(portal.second.second.second - midpoint.second)};
-            if (portal.first == "AA")
-            {
-                enter = theMap[offF];
-                continue;
-            }
-            else if (portal.first == "ZZ")
-            {
-                exit = theMap[offF];
-                continue;
-            }
-            if (sqrt(f.first * f.first + f.second * f.second) > sqrt(s.first * s.first + s.second * s.second))
-            {
-                theMap[offF]->levelChange = -1;
-                theMap[offS]->levelChange = 1;
-                //theMap[offF]->mark = 'N';
-                //theMap[offS]->mark = 'P';
-                theMap[offF]->portal = portal.first;
-                theMap[offS]->portal = portal.first;
-            }
-            else
-            {
-                theMap[offF]->levelChange = 1;
-                theMap[offS]->levelChange = -1;
-                //theMap[offF]->mark = 'P';
-                //theMap[offS]->mark = 'N';
-                theMap[offF]->portal = portal.first;
-                theMap[offS]->portal = portal.first;
-            }
-            theMap[offF]->portalCell = theMap[offS];
-            //theMap[offF]->mark = 'X';
-            theMap[offS]->portalCell = theMap[offF];
-            //theMap[offS]->mark = 'X';
-        }
-        constructConnectivity();
-    }
 
-    void constructConnectivity()
-    {
-        for(auto& cc : walkable)
-        {
-            auto pos = cc->pos;
-            const coord left  {pos.first - 1, pos.second};
-            const coord right {pos.first + 1, pos.second};
-            const coord top   {pos.first, pos.second - 1};
-            const coord bottom{pos.first, pos.second + 1};
+        for_each(walkable.cbegin(), walkable.cend(),
+                [&](const auto& cc){
+                    auto pos = cc->pos;
+                    const coord left  {pos.first - 1, pos.second};
+                    const coord right {pos.first + 1, pos.second};
+                    const coord top   {pos.first, pos.second - 1};
+                    const coord bottom{pos.first, pos.second + 1};
 
-            bitset<4> boolmap{};
-            for_each(walkable.begin(), walkable.end(),
-                [&](auto& el){
-                    boolmap.set(0, el->pos == left);
-                    boolmap.set(1, el->pos == right);
-                    boolmap.set(2, el->pos == top);
-                    boolmap.set(3, el->pos == bottom);
-                    if (boolmap.any())
-                        cc->connectivity.insert(el);
+                    for_each(walkable.cbegin(), walkable.cend(),
+                            [&](auto const& el){
+                                valarray<bool> boolmap{false, false, false, false};
+                                boolmap[0] |= (el->pos == left);
+                                boolmap[1] |= (el->pos == right);
+                                boolmap[2] |= (el->pos == top);
+                                boolmap[3] |= (el->pos == bottom);
+                                if (boolmap.max() != false)
+                                    cc->connectivity.insert(el);
+                            });
                 });
-        }
     }
 
-    enum Direction
+    void collectKeys()
     {
-        head = 0,
-        tail = 1
-    };
+        KeyChain masterKey{keys};
 
-    void calculateDistances()
-    {
-        map<CellPtr, set<long>> visited{};
-        for(const auto& w : walkable)
-            visited.insert({w, {}});
+        map<coord, set<KeyChain>> visited{};
+        queue<CellData> q{};
+        q.emplace(start, 0, masterKey);
 
-        auto cmp = [](CellData const& left, CellData const& right) {
-            return left.level > right.level;
-        };
-        priority_queue<CellData, vector<CellData>, decltype(cmp)> q{cmp};
-        q.emplace(enter, 0, 0);
-
-        long totalDistance = -1;
+        long totalDistance{-1};
         while(!q.empty())
         {
-            CellData current = q.top();
+            CellData current = q.front();
             q.pop();
-            if (current.cell == exit && current.level == 0)
+            if (current.collectedKeys.allCollected())
             {
                 totalDistance = current.distance;
                 break;
             }
             // skip visited
-            if (auto f = visited.find(current.cell); !f->second.insert(current.level).second)
-                continue;
+            if (auto f = visited.find(current.cell->pos); f != visited.end())
+            {
+                auto res = f->second.insert(current.collectedKeys);
+                if (!res.second)
+                    continue;
+            } else {
+                visited.insert({current.cell->pos, {current.collectedKeys}});
+            }
             //indicateMark(current.cell, '*');
             const long newDist{current.distance + 1};
             for(auto const& child : current.cell->connectivity)
-                q.emplace(child, current.level, newDist);
-            if (current.cell->portalCell && current.level + current.cell->levelChange >= 0)
             {
-                if (current.level >= 300)
+                if (isDoor(child) && !current.collectedKeys.canOpen(child->mark))
                     continue;
-                //qport.emplace(current.cell->portalCell, current.level + current.cell->levelChange, newDist);
-                q.emplace(current.cell->portalCell, current.level + current.cell->levelChange, newDist);
+                KeyChain newKeys = current.collectedKeys;
+                if (isKey(child))
+                    newKeys.addKey(child->mark);
+                q.emplace(child, newDist, newKeys);
             }
         }
-        cout << "The distance to ZZ is " << totalDistance << endl;
-        //cout << endl;
-        ////long totalSteps = 0;
-        //long previousChange = 0;
-        ////level = 0;
-        //for (pair<CellPtr, long> trav = exit->comingFrom[0]; trav.first != nullptr; )
-        //{
-        //    const char save = trav.first->mark;
-        //    trav.first->mark = '@';
-        //    cout << "Step count: " << trav.first->distances[level] << "            \n";
-        //    printMap(true);
-        //    cout << "\033[" << 1 << "A";
-        //    // restore
-        //    trav.first->mark = save;
-
-        //    //const long prev = trav.second;
-        //    trav = trav.first->comingFrom[level];
-        //    if (level != trav.second)
-        //    {
-        //        level = trav.second;
-        //        //cout << "Change level to " << level << " using portal " << trav.first->portal << " done "
-        //        //    << trav.first->distances[level] - previousChange << " steps from last tp\n";
-        //        previousChange = trav.first->distances[level];
-        //    }
-        //    std::this_thread::sleep_for(std::chrono::milliseconds(2));
-        //}
-        //cout << "Step count: " << previousChange << "                     \n";
-        //printMap();
+        //printMap(false);
+        cout << "The total number of steps is " << totalDistance << endl;
     }
 
     void indicateMark(CellPtr const& cell, char sym = '@')
@@ -297,7 +194,7 @@ struct Torus
         const char save = cell->mark;
         cell->mark = sym;
         printMap(true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(30));
+        std::this_thread::sleep_for(std::chrono::milliseconds(40));
         cell->mark = save;
     }
 
@@ -315,7 +212,7 @@ struct Torus
                 });
         const long linelen = abs(minX) + abs(maxX) + 1;
         const long collen = abs(minY) + abs(maxY) + 1;
-        vector<char> result(linelen*collen, '.');
+        vector<char> result(linelen*collen, ' ');
         const coord offset = {minX, minY};
         for_each(theMap.cbegin(), theMap.cend(),
                 [&](const auto& el){
@@ -333,6 +230,12 @@ struct Torus
         if (getBack)
             cout << "\033[" << collen << "A";
     }
+
+public:
+    vector<CellPtr> theMap{};
+    vector<CellPtr> walkable{};
+    set<CellPtr, CellPtrCmp> keys{};
+    CellPtr start{};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -343,21 +246,20 @@ int main()
     cin >> N;
     string garbage;
     std::getline(cin, garbage);
-
     vector<string> inputs{};
-    for(int i = 0; i != N; ++i)
+    inputs.reserve(N);
+    for(int i = 0; i < N; ++i)
     {
         string line;
         std::getline(cin, line);
         inputs.push_back(line);
     }
-
+    Vault vault{};
+    vault.generateMap(inputs);
     // part 1
     cout << "Part 1\n";
-    Torus tor{};
-    tor.constructMap(inputs);
-    tor.printMap();
-    tor.calculateDistances();
+    vault.printMap();
+    vault.collectKeys();
     // part 2
     cout << "Part 2\n";
 
