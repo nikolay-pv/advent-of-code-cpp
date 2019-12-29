@@ -56,13 +56,13 @@ int main()
     //cout << "Part 2\n";
     //tower.notifyOthers();
 
-    beam::BeamExplorer beam{computer, 50, 50};
+    beam::BeamExplorer beam{computer, 100, 100};
     // Part 1
     cout << "Part 1\n";
     beam.probeLocations();
     // Part 2
-    //cout << "Part 2\n";
-    //tower.notifyOthers();
+    cout << "Part 2\n";
+    beam.findSquarePosition();
     return 0;
 }
 

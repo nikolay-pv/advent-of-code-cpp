@@ -3,6 +3,7 @@
 
 #include <chrono>
 #include <thread>
+#include <queue>
 
 namespace beam {
 
@@ -81,9 +82,92 @@ void BeamExplorer::probeLocations()
     cout << "The area of the tractor beam is " << pullArea << endl;
 }
 
+struct Interval
+{
+    coord left;
+    coord right;
+};
+
+std::ostream& operator<<(std::ostream& os, const Interval& obj)
+{
+    os << "Interval: l = " << obj.left.first << " " << obj.left.second << " r = " << obj.right.first << " " << obj.right.second;
+    return os;
+}
+
+long getOverlap(Interval const& l, Interval const& r)
+{ return l.right.first - r.left.first; }
+
+coord BeamExplorer::searchFirst(coord& after, long searchVal)
+{
+    currnt = after;
+    long output{-1};
+    while (output != searchVal)
+    {
+        auto state = IntCodeComputer::Running;
+        while (state != IntCodeComputer::Halt && state != IntCodeComputer::Paused)
+            std::tie(output, state) = brain.runningLoop(nullopt);
+        brain.resetToInit();
+        if (output == searchVal)
+            break;
+    }
+    return previous;
+}
+
 void BeamExplorer::findSquarePosition()
 {
     const long squareSize = 100;
+    auto probe = [&]()
+        {
+            long answ{};
+            if (this->nextToPass != nullopt) {
+                answ = this->nextToPass.value();
+                this->nextToPass = nullopt;
+                this->previous = this->currnt;
+                    currnt.first += 1;
+            } else {
+                answ = this->currnt.first;
+                this->nextToPass = this->currnt.second;
+            }
+            return answ;
+        };
+    static_cast<Input*>(brain.instructionSet[OpcodeInstruction::input].get())->setCallBack(probe);
+    static_cast<Output*>(brain.instructionSet[OpcodeInstruction::output].get())->removeCallBack();
+    
+    queue<Interval> q;
+    // initial setup loadup 100 intervals;
+    for(const auto& boundary : boundaries)
+    {
+        if (boundary.first && !boundary.second)
+        {
+            Interval ni{boundary.first->pos, boundary.first->pos};
+            q.push(ni);
+            continue;
+        } else if (!boundary.first && !boundary.second)
+        {
+            q.push(q.back());
+            continue;
+        }
+        Interval ni{boundary.first->pos, boundary.second->pos};
+        q.push(ni);
+    }
+    while(getOverlap(q.front(), q.back()) != squareSize - 1)
+    {
+        q.pop();
+        coord tmp{q.back().left.first, q.back().left.second + 1};
+        auto start = searchFirst(tmp, 1);
+        tmp.first = q.back().right.first;
+        auto end = searchFirst(tmp, 0);
+        // end is past one element
+        --end.first;
+        Interval inn{start, end};
+        q.push(inn);
+    }
+    cout << "That point's X coordinate, multiplied by 10000, with then added the point's Y coordinate = ";
+    const long x = q.back().left.first;
+    const long y = q.front().left.second;
+    cout << 10000 * x + y << endl;
+    cout << "Top row is " << q.front() << endl;
+    cout << "Bottom row is " << q.back() << endl;
 }
 
 void BeamExplorer::printMap(bool getBack) const
@@ -118,6 +202,5 @@ void BeamExplorer::printMap(bool getBack) const
     if (getBack)
         cout << "\033[" << collen << "A";
 }
-
 
 } // namespace beam

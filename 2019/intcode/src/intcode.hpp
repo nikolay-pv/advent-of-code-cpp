@@ -136,6 +136,7 @@ class Input : public CmdExecutor
     long inputValue = 0;
 public:
     void setCallBack(std::function<long()> nCallBack);
+    void removeCallBack();
     void passValue(list<long>& vals) override;
     long paramsLength() override;
     void execute(vector<long>::iterator begginingOfInstruction,
@@ -149,6 +150,7 @@ class Output : public CmdExecutor
     optional<long> output = nullopt;
 public:
     void setCallBack(std::function<void(long output)> nCallBack);
+    void removeCallBack();
     void getValue(optional<long>& val) override;
     long paramsLength() override;
     void execute(vector<long>::iterator begginingOfInstruction,

@@ -263,6 +263,11 @@ void Input::setCallBack(std::function<long()> nCallBack)
     callBack = nCallBack;
 }
 
+void Input::removeCallBack()
+{
+    callBack = nullopt;
+}
+
 void Input::passValue(list<long>& vals)
 {
     if (callBack != nullopt)
@@ -307,6 +312,11 @@ void Output::setCallBack(std::function<void(long)> nCallBack)
     callBack = nCallBack;
 }
 
+void Output::removeCallBack()
+{
+    callBack = nullopt;
+}
+
 void Output::getValue(optional<long>& val)
 {
     if (callBack != nullopt && output != nullopt)
@@ -325,7 +335,9 @@ void Output::execute(vector<long>::iterator begginingOfInstruction,
     const long offset = 1;
     const long val = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
     output = val;
-    //cout << "Output: " << val << endl;
+#ifdef INTCODEDEBUG
+    cerr << "Output: " << val << endl;
+#endif
 }
 
 // Jump_if_true

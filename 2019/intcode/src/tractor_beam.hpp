@@ -55,6 +55,7 @@ struct BeamExplorer
 public:
     void probeLocations();
     void findSquarePosition();
+    coord searchFirst(coord& after, long value);
     void printMap(bool getBack = false) const;
 };
 
