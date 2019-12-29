@@ -2,6 +2,7 @@
 #include <memory>
 #include <chrono>
 #include <thread>
+#include <iostream>
 
 char getGlyph(OutputDroid od)
 {

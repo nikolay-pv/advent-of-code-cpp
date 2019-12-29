@@ -87,7 +87,12 @@ struct IntCodeComputer
     pair<long, State> runningLoop(optional<long> input);
     optional<OpcodeInstruction> getCurrentOpcode();
 
+    void resetToInit();
+
 private:
+    struct InitialState{
+        std::vector<long> memory;
+    } is;
     void cerrPrintMemory() const;
     void cerrPrintCache() const;
 };

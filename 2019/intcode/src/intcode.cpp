@@ -46,12 +46,21 @@ IntCodeComputer::IntCodeComputer(vector<long> mem)
 {
     halting = false;
     instructionPos = memory.begin();
+    is.memory = memory;
     setUpInstructions(this->instructionSet);
 };
 IntCodeComputer::IntCodeComputer(string nn, vector<long> mem)
     : IntCodeComputer(std::move(mem))
 {
     name = std::move(nn);
+};
+
+void IntCodeComputer::resetToInit()
+{
+    halting = false;
+    for(int i = 0; i != is.memory.size(); ++i)
+        memory[i] = is.memory[i];
+    instructionPos = memory.begin();
 };
 
 

@@ -5,7 +5,8 @@
 //#include "hull_painting_robot.hpp"
 //#include "arcade_cabinet.hpp"
 //#include "repair_droid.hpp"
-#include "ascii.hpp"
+//#include "ascii.hpp"
+#include "tractor_beam.hpp"
 
 using namespace std;
 
@@ -47,13 +48,21 @@ int main()
     //r2d2.searchOxygen();
     //r2d2.calculateTimeToFill();
 
-    ascii::Ascii tower{computer};
+    //ascii::Ascii tower{computer};
     // Part 1
     //cout << "Part 1\n";
     //tower.constructMap();
     // Part 2
-    cout << "Part 2\n";
-    tower.notifyOthers();
+    //cout << "Part 2\n";
+    //tower.notifyOthers();
+
+    beam::BeamExplorer beam{computer, 50, 50};
+    // Part 1
+    cout << "Part 1\n";
+    beam.probeLocations();
+    // Part 2
+    //cout << "Part 2\n";
+    //tower.notifyOthers();
     return 0;
 }
 
