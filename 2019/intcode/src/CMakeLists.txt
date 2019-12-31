@@ -7,6 +7,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE main.cpp intcode.hpp intcode.cpp
     repair_droid.hpp repair_droid.cpp
     ascii.hpp ascii.cpp
     tractor_beam.hpp tractor_beam.cpp
+    springdroid.hpp springdroid.cpp
     )
 
 # for tests
@@ -16,4 +17,5 @@ add_library(${CMAKE_PROJECT_NAME}_lib STATIC main.cpp intcode.hpp intcode.cpp
     repair_droid.hpp repair_droid.cpp
     ascii.hpp ascii.cpp
     tractor_beam.hpp tractor_beam.cpp
+    springdroid.hpp springdroid.cpp
     )

@@ -7,6 +7,7 @@
 //#include "repair_droid.hpp"
 //#include "ascii.hpp"
 #include "tractor_beam.hpp"
+#include "springdroid.hpp"
 
 using namespace std;
 
@@ -56,13 +57,20 @@ int main()
     //cout << "Part 2\n";
     //tower.notifyOthers();
 
-    beam::BeamExplorer beam{computer, 100, 100};
+    //beam::BeamExplorer beam{computer, 100, 100};
+    //// Part 1
+    //cout << "Part 1\n";
+    //beam.probeLocations();
+    //// Part 2
+    //cout << "Part 2\n";
+    //beam.findSquarePosition();
+    spring::SpringDroid kengaroo{computer};
     // Part 1
     cout << "Part 1\n";
-    beam.probeLocations();
+    kengaroo.run();
     // Part 2
     cout << "Part 2\n";
-    beam.findSquarePosition();
+    //beam.findSquarePosition();
     return 0;
 }
 
