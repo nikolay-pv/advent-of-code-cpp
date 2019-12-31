@@ -84,6 +84,8 @@ struct KeyChain
     { return l.letters == r.letters; }
     friend bool operator <(const KeyChain& l, const KeyChain& r)
     { return l.letters.to_string() < r.letters.to_string(); }
+    friend bool operator >(const KeyChain& l, const KeyChain& r)
+    { return l.letters.to_string() > r.letters.to_string(); }
 };
 
 bool isDoor(CellPtr const& el) { return isalpha(el->mark) && isupper(el->mark); }
@@ -91,15 +93,17 @@ bool isKey(CellPtr const& el) { return isalpha(el->mark) && islower(el->mark); }
 
 struct CellData
 {
-    CellData(CellPtr c, long d, KeyChain k)
-        : cell{c}, distance{d}, collectedKeys{k}
+    CellData(vector<CellPtr> c, vector<long> d, KeyChain k, int idx)
+        : cells{move(c)}, distances{move(d)}, collectedKeys{k}, active{idx % 4}
     { }
-    CellPtr cell{};
-    long distance{};
+    vector<CellPtr> cells{};
+    vector<long> distances{};
+    int active{};
     KeyChain collectedKeys{};
 
     friend bool operator <(const CellData& l, const CellData& r)
-    { return l.cell == r.cell ? l.distance < r.distance : l.cell < r.cell; }
+    { return l.cells[l.active] == r.cells[r.active]
+        ? l.distances[l.active] < r.distances[r.active] : l.cells[l.active] < r.cells[r.active]; }
 };
 
 struct Vault
@@ -118,7 +122,7 @@ struct Vault
                             walkable.push_back(nc);
                         if (ch == '@')
                         {
-                            start = nc;
+                            starts.push_back(nc);
                         } else if(isalpha(ch) && islower(ch)) {
                             keys.insert(nc);
                         }
@@ -152,37 +156,53 @@ struct Vault
 
         map<coord, set<KeyChain>> visited{};
         queue<CellData> q{};
-        q.emplace(start, 0, masterKey);
+        long idx = 0;
+        q.emplace(starts, vector<long>{0, 0, 0, 0}, masterKey, idx++);
 
-        long totalDistance{-1};
+        long totalDistance{};
         while(!q.empty())
         {
+            //CellData current = q.top();
             CellData current = q.front();
             q.pop();
             if (current.collectedKeys.allCollected())
             {
-                totalDistance = current.distance;
+                for(auto d : current.distances)
+                    totalDistance += d;
                 break;
             }
             // skip visited
-            if (auto f = visited.find(current.cell->pos); f != visited.end())
+            if (auto f = visited.find(current.cells[current.active]->pos); f != visited.end())
             {
                 auto res = f->second.insert(current.collectedKeys);
                 if (!res.second)
                     continue;
             } else {
-                visited.insert({current.cell->pos, {current.collectedKeys}});
+                visited.insert({current.cells[current.active]->pos, {current.collectedKeys}});
             }
-            //indicateMark(current.cell, '*');
-            const long newDist{current.distance + 1};
-            for(auto const& child : current.cell->connectivity)
+            //indicateMark(current.cells[current.active], '*');
+            vector<long> newDist{current.distances};
+            newDist[current.active] += 1;
+            for(auto const& child : current.cells[current.active]->connectivity)
             {
+                vector<CellPtr> newCells{current.cells};
+                newCells[current.active] = child;
                 if (isDoor(child) && !current.collectedKeys.canOpen(child->mark))
                     continue;
                 KeyChain newKeys = current.collectedKeys;
+                bool addOthers = false;
                 if (isKey(child))
+                {
                     newKeys.addKey(child->mark);
-                q.emplace(child, newDist, newKeys);
+                    addOthers = true;
+                }
+                q.emplace(newCells, newDist, newKeys, current.active);
+                if (addOthers)
+                {
+                    q.emplace(newCells, newDist, newKeys, current.active + 1);
+                    q.emplace(newCells, newDist, newKeys, current.active + 2);
+                    q.emplace(newCells, newDist, newKeys, current.active + 3);
+                }
             }
         }
         //printMap(false);
@@ -235,7 +255,7 @@ public:
     vector<CellPtr> theMap{};
     vector<CellPtr> walkable{};
     set<CellPtr, CellPtrCmp> keys{};
-    CellPtr start{};
+    vector<CellPtr> starts{};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
