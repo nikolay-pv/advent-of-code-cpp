@@ -23,24 +23,16 @@ SpringDroid::SpringDroid(IntCodeComputer& newBrain)
     auto probe = [&]()
         {
             static long inc{};
-//  ABCD T J
-// 10001 ? 1
-// 10011 ? 1
-// 10101 ? 1
-// 11001 ? 1
-// 11011 ? 1
-// 11101 ? 1
-// 11111 ? 0 
-// if (D == 1 && (A == 0 || B == 0 || C == 0))
-// if (D == 1 && !(A == 1 && B == 1 && C == 1))
-// if !(D == 0 || (A == 1 && B == 1 && C == 1))
-
-            string program = 
-"NOT A T\n"
+            string program =
 "NOT C J\n"
-"OR T J\n"
 "AND D J\n"
-"WALK\n"
+"AND H J\n"
+"NOT B T\n"
+"AND D T\n"
+"OR T J\n"
+"NOT A T\n"
+"OR T J\n"
+"RUN\n"
 ;
             //cerr << "Input for pos " << inc << " " << program[inc] << endl;
             return program[inc++];
