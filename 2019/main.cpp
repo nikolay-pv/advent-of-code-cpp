@@ -19,243 +19,163 @@
 using namespace std;
 using coord = std::pair<long, long>;
 
-struct Cell;
-using CellPtr = shared_ptr<Cell>;
-struct Cell
+struct DeckShuffler
 {
-    Cell(coord const& p, char m)
-        : pos{p}, mark{m}
-    { }
+    long deckSize{10};
 
-    char mark{' '};
-    coord pos{};
-    std::set<CellPtr> connectivity{};
-
-    friend bool operator >(const Cell& l, const Cell& r)
-    { return l.pos.first > r.pos.first && l.pos.second && l.pos.second; }
-    friend bool operator <(const Cell& l, const Cell& r)
-    { return !(l.pos > r.pos); }
-    friend bool operator==(const Cell& l, const Cell& r)
-    { return l.pos == r.pos; }
-    friend bool operator!=(const Cell& l, const Cell& r)
-    { return !(l == r); }
-};
-
-struct CellPtrCmp {
-    bool operator()(const CellPtr& lhs, const CellPtr& rhs) const {
-        return lhs->pos < rhs->pos;
-    }
-};
-
-std::ostream& operator<<(std::ostream& os, const Cell& obj)
-{
-    os << "Cell: " << obj.pos.first << " " << obj.pos.second << " with mark " << obj.mark;
-    return os;
-}
-
-
-struct KeyChain
-{
-    std::bitset<26> letters{};
-    KeyChain() = default;
-    KeyChain(string availableKeys)
+    long deal(long index)
     {
-        letters.flip();
-        for_each(availableKeys.begin(), availableKeys.end(),
-                [&](auto& k){
-                    letters.flip(k - 'a');
-                });
-    }
-    KeyChain(set<CellPtr, CellPtrCmp> availableKeys)
-    {
-        letters.flip();
-        for_each(availableKeys.begin(), availableKeys.end(),
-                [&](auto& k){
-                    letters.flip(k->mark - 'a');
-                });
+        //cerr << "Dealing index " << index << endl;
+        return deckSize - index - 1;
     }
 
-    void addKey(char k) { letters.set(k - 'a'); }
-    bool hasKey(char k) const { return letters[tolower(k) - 'a']; }
-    bool canOpen(char door) const { return letters[door - 'A']; }
-    bool allCollected() const { return letters.all(); }
-
-    friend bool operator==(const KeyChain& l, const KeyChain& r)
-    { return l.letters == r.letters; }
-    friend bool operator <(const KeyChain& l, const KeyChain& r)
-    { return l.letters.to_string() < r.letters.to_string(); }
-    friend bool operator >(const KeyChain& l, const KeyChain& r)
-    { return l.letters.to_string() > r.letters.to_string(); }
-};
-
-bool isDoor(CellPtr const& el) { return isalpha(el->mark) && isupper(el->mark); }
-bool isKey(CellPtr const& el) { return isalpha(el->mark) && islower(el->mark); }
-
-struct CellData
-{
-    CellData(vector<CellPtr> c, vector<long> d, KeyChain k, int idx)
-        : cells{move(c)}, distances{move(d)}, collectedKeys{k}, active{idx % 4}
-    { }
-    vector<CellPtr> cells{};
-    vector<long> distances{};
-    int active{};
-    KeyChain collectedKeys{};
-
-    friend bool operator <(const CellData& l, const CellData& r)
-    { return l.cells[l.active] == r.cells[r.active]
-        ? l.distances[l.active] < r.distances[r.active] : l.cells[l.active] < r.cells[r.active]; }
-};
-
-struct Vault
-{
-    void generateMap(std::vector<string> const& inputs)
+    long reverseDeal(long index)
     {
-        for(int i = 0; i != inputs.size(); ++i)
+        return deckSize - index - 1;
+    }
+
+    long cut(long n, long index)
+    {
+        //cerr << "Cutting index " << index << endl;
+        index -= n;
+        if (index >= deckSize)
+            index %= deckSize;
+        while(index < 0)
+            index += deckSize;
+        return index;
+    }
+
+    long reverseCut(long n, long index)
+    {
+        index += n;
+        if (n > 0)
+            index %= deckSize;
+        else if (index < 0)
+            index = deckSize + index;
+        return index;
+    }
+
+    long deal(long n, long index)
+    {
+        //cerr << "Dealing index " << index << " with n " << n << endl;
+        return (n * index) % deckSize;
+    }
+
+    long reverseDeal(long n, long index)
+    {
+        if (index % n == 0)
+            return index / n;
+        const long circle = n - index % n;
+        const long offsettedPosition = circle*deckSize + index;
+        const long answ = offsettedPosition / n;
+        //cerr << "circle " << circle << " offsettedPosition " << offsettedPosition << " answ " << answ << endl;
+        return answ;
+    }
+
+    // for tests
+    static vector<long> deal(vector<long>& deck)
+    {
+        return {deck.rbegin(), deck.rend()};
+    }
+
+    static vector<long> cut(long n, vector<long> deck)
+    {
+        if (n > 0)
+            rotate(deck.begin(), deck.begin() + n, deck.end());
+        else
+            rotate(deck.rbegin(), deck.rbegin() - n, deck.rend());
+        return std::move(deck);
+    }
+
+    static vector<long> deal(long n, vector<long>& deck)
+    {
+        long newPos = 0;
+        vector<long> ndeck(deck.size());
+        for (int i = 0; i != deck.size(); ++i, newPos += n)
+            ndeck[newPos % deck.size()] = deck[i];
+        return std::move(ndeck);
+    }
+
+    long traverseInstructions(vector<string> const& inputs, long target)
+    {
+        for(auto const& input : inputs)
+            target = parseInput(input, target);
+        return target;
+    }
+
+    long parseInput(string const& input, long target)
+    {
+        //cerr << "Input " << input << endl;
+        auto keyword = input.substr(0, 4);
+        if (keyword == "deal")
         {
-            long x{};
-            for_each(inputs[i].cbegin(), inputs[i].cend(),
-                    [&](auto const& ch){
-                        coord p{x++, i};
-                        auto nc = make_shared<Cell>(p, ch);
-                        this->theMap.push_back(nc);
-                        if (ch != '#')
-                            walkable.push_back(nc);
-                        if (ch == '@')
-                        {
-                            starts.push_back(nc);
-                        } else if(isalpha(ch) && islower(ch)) {
-                            keys.insert(nc);
-                        }
-                    });
-        }
-
-        for_each(walkable.cbegin(), walkable.cend(),
-                [&](const auto& cc){
-                    auto pos = cc->pos;
-                    const coord left  {pos.first - 1, pos.second};
-                    const coord right {pos.first + 1, pos.second};
-                    const coord top   {pos.first, pos.second - 1};
-                    const coord bottom{pos.first, pos.second + 1};
-
-                    for_each(walkable.cbegin(), walkable.cend(),
-                            [&](auto const& el){
-                                valarray<bool> boolmap{false, false, false, false};
-                                boolmap[0] |= (el->pos == left);
-                                boolmap[1] |= (el->pos == right);
-                                boolmap[2] |= (el->pos == top);
-                                boolmap[3] |= (el->pos == bottom);
-                                if (boolmap.max() != false)
-                                    cc->connectivity.insert(el);
-                            });
-                });
-    }
-
-    void collectKeys()
-    {
-        KeyChain masterKey{keys};
-
-        map<coord, set<KeyChain>> visited{};
-        queue<CellData> q{};
-        long idx = 0;
-        q.emplace(starts, vector<long>{0, 0, 0, 0}, masterKey, idx++);
-
-        long totalDistance{};
-        while(!q.empty())
-        {
-            //CellData current = q.top();
-            CellData current = q.front();
-            q.pop();
-            if (current.collectedKeys.allCollected())
-            {
-                for(auto d : current.distances)
-                    totalDistance += d;
-                break;
-            }
-            // skip visited
-            if (auto f = visited.find(current.cells[current.active]->pos); f != visited.end())
-            {
-                auto res = f->second.insert(current.collectedKeys);
-                if (!res.second)
-                    continue;
+            if (auto second = input.substr(5, 4); second == "with") {
+                auto pos = input.rfind(' ');
+                auto num = input.substr(pos, input.size() - pos);
+                const long n = stol(num);
+                //cerr << "Extracted " << n << " from " << input << endl;
+                target = deal(n, target);
+                //cerr << " result = " << target << endl;
             } else {
-                visited.insert({current.cells[current.active]->pos, {current.collectedKeys}});
-            }
-            //indicateMark(current.cells[current.active], '*');
-            vector<long> newDist{current.distances};
-            newDist[current.active] += 1;
-            for(auto const& child : current.cells[current.active]->connectivity)
-            {
-                vector<CellPtr> newCells{current.cells};
-                newCells[current.active] = child;
-                if (isDoor(child) && !current.collectedKeys.canOpen(child->mark))
-                    continue;
-                KeyChain newKeys = current.collectedKeys;
-                bool addOthers = false;
-                if (isKey(child))
-                {
-                    newKeys.addKey(child->mark);
-                    addOthers = true;
-                }
-                q.emplace(newCells, newDist, newKeys, current.active);
-                if (addOthers)
-                {
-                    q.emplace(newCells, newDist, newKeys, current.active + 1);
-                    q.emplace(newCells, newDist, newKeys, current.active + 2);
-                    q.emplace(newCells, newDist, newKeys, current.active + 3);
-                }
+                //cerr << "Extracted from " << input << endl;
+                target = deal(target);
+                //cerr << " result = " << target << endl;
             }
         }
-        //printMap(false);
-        cout << "The total number of steps is " << totalDistance << endl;
-    }
-
-    void indicateMark(CellPtr const& cell, char sym = '@')
-    {
-        const char save = cell->mark;
-        cell->mark = sym;
-        printMap(true);
-        std::this_thread::sleep_for(std::chrono::milliseconds(40));
-        cell->mark = save;
-    }
-
-    void printMap(bool getBack = false) const
-    {
-        // find max y min y
-        long minX{}, maxX{}, minY{}, maxY{};
-        for_each(theMap.cbegin(), theMap.cend(),
-                [&](const auto& el){
-                    const coord p = el->pos;
-                    minX = min(p.first,  minX);
-                    maxX = max(p.first,  maxX);
-                    minY = min(p.second, minY);
-                    maxY = max(p.second, maxY);
-                });
-        const long linelen = abs(minX) + abs(maxX) + 1;
-        const long collen = abs(minY) + abs(maxY) + 1;
-        vector<char> result(linelen*collen, ' ');
-        const coord offset = {minX, minY};
-        for_each(theMap.cbegin(), theMap.cend(),
-                [&](const auto& el){
-                    coord p{el->pos.first - offset.first, el->pos.second - offset.second};
-                    result[p.second*linelen + p.first] = el->mark;
-                });
-        for(int i = 0; i != result.size(); ++i)
+        else if (keyword == "cut ")
         {
-            if (i != 0 && i % linelen == 0)
-                cout << "\n";
-            cout << result[i];
+            auto num = input.substr(input.rfind(' '));
+            const long n = stol(num);
+            //cerr << "Extracted " << n << " from " << input << endl;
+            target = cut(n, target);
+            //cerr << " result = " << target << endl;
         }
-        cout << "\n";
-        // move coursor up
-        if (getBack)
-            cout << "\033[" << collen << "A";
+        else
+            cerr << "shuffle overflow" << endl;
+        return target;
     }
 
-public:
-    vector<CellPtr> theMap{};
-    vector<CellPtr> walkable{};
-    set<CellPtr, CellPtrCmp> keys{};
-    vector<CellPtr> starts{};
+    long reverseTraverseInstructions(vector<string> const& inputs, long target)
+    {
+        for(auto const& input : inputs)
+            target = reverseInput(input, target);
+        return target;
+    }
+
+    long reverseInput(string const& input, long target)
+    {
+        //deal into new stack
+        //cut -2
+        //deal with increment 7
+        //cut 8
+        //cut -4
+        //deal with increment 7
+        //cut 3
+        //deal with increment 9
+        //deal with increment 3
+        auto keyword = input.substr(0, 4);
+        if (keyword == "deal")
+        {
+            if (auto second = input.substr(4, 4); second == "with") {
+                auto num = input.substr(input.rfind(' '));
+                const long n = stol(num);
+                //cerr << "Extracted " << n << " from " << input << endl;
+                target = reverseDeal(n, target);
+            } else {
+                target = reverseDeal(target);
+            }
+        }
+        else if (keyword == "cut ")
+        {
+            auto num = input.substr(input.rfind(' '));
+            const long n = stol(num);
+            //cerr << "Extracted " << n << " from " << input << endl;
+            target = reverseCut(n, target);
+        }
+        else
+            cerr << "shuffle overflow" << endl;
+        return target;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -274,12 +194,65 @@ int main()
         std::getline(cin, line);
         inputs.push_back(line);
     }
-    Vault vault{};
-    vault.generateMap(inputs);
+
+    {
+    DeckShuffler testShuffler{10};
+    vector<long> testDeck{0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    // deal
+    vector<long> res{9, 8, 7, 6, 5, 4, 3, 2, 1, 0};
+    assert(res == DeckShuffler::deal(testDeck));
+    long resIdx = 0;
+    assert(res[resIdx] == testDeck[testShuffler.reverseDeal(resIdx)]);
+    assert(resIdx == testShuffler.deal(res[resIdx]));
+    resIdx = 3;
+    assert(res[resIdx] == testDeck[testShuffler.reverseDeal(resIdx)]);
+    assert(resIdx == testShuffler.deal(res[resIdx]));
+    for(resIdx = 0; resIdx != res.size(); ++resIdx)
+    {
+        //cerr << "checking " << resIdx << endl;
+        assert(res[resIdx] == testDeck[testShuffler.reverseDeal(resIdx)]);
+        assert(resIdx == testShuffler.deal(res[resIdx]));
+    }
+    // cut
+    res = {3, 4, 5, 6, 7, 8, 9, 0, 1, 2};
+    assert(res == DeckShuffler::cut(3, testDeck));
+    resIdx = 0;
+    assert(res[resIdx] == testDeck[testShuffler.reverseCut(3, resIdx)]);
+    assert(resIdx == testShuffler.cut(3, res[resIdx]));
+    resIdx = 4;
+    assert(res[resIdx] == testDeck[testShuffler.reverseCut(3, resIdx)]);
+    assert(resIdx == testShuffler.cut(3, res[resIdx]));
+    for(resIdx = 0; resIdx != res.size(); ++resIdx)
+    {
+        //cerr << "checking " << resIdx << endl;
+        assert(res[resIdx] == testDeck[testShuffler.reverseCut(3, resIdx)]);
+        assert(resIdx == testShuffler.cut(3, res[resIdx]));
+    }
+    res = {6, 7, 8, 9, 0, 1, 2, 3, 4, 5};
+    assert(res == DeckShuffler::cut(-4, testDeck));
+    for(resIdx = 0; resIdx != res.size(); ++resIdx)
+    {
+        cerr << "checking " << resIdx << endl;
+        assert(res[resIdx] == testDeck[testShuffler.reverseCut(-4, resIdx)]);
+        assert(resIdx == testShuffler.cut(-4, res[resIdx]));
+    }
+    // deal with increment
+    res = {0, 7, 4, 1, 8, 5, 2, 9, 6, 3};
+    assert(res == DeckShuffler::deal(3, testDeck));
+    for(resIdx = 0; resIdx != res.size(); ++resIdx)
+    {
+        //cerr << "checking " << resIdx << endl;
+        assert(res[resIdx] == testDeck[testShuffler.reverseDeal(3, resIdx)]);
+        assert(resIdx == testShuffler.deal(3, res[resIdx]));
+    }
+    }
+
     // part 1
     cout << "Part 1\n";
-    vault.printMap();
-    vault.collectKeys();
+    DeckShuffler part1{10007};
+    const long initialIdx = 2019;
+    const long answ = part1.traverseInstructions(inputs, initialIdx);
+    cout << "the position of card " << initialIdx << " is " << answ << endl;
     // part 2
     cout << "Part 2\n";
 
