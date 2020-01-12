@@ -76,9 +76,8 @@ int main()
     // Day 23
     const long numOfNodes = 50;
     net::Network lan{numOfNodes, memory};
-    cout << "Part 1\n";
+    cout << "Part 1 & 2\n";
     lan.run();
-    cout << "Part 2\n";
     //beam.findSquarePosition();
     return 0;
 }

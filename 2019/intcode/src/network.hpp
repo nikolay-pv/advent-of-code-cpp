@@ -47,6 +47,15 @@ struct Computer
 
 using ComputerPtr = shared_ptr<Computer>;
 
+struct NAT
+{
+    packet idlePckt{};
+    long lastPassedY{};
+    bool recPacket{false};
+
+    bool monitorIsIdle(const vector<ComputerPtr>& theNet) const;
+};
+
 struct Network
 {
 public:
@@ -57,12 +66,13 @@ public:
 
     Network(long num, std::vector<long>& mem);
 
-    void sendPacket(long dst, packet pckt) const;
+    void sendPacket(long dst, packet pckt);
     void halt() const;
-    void run() const;
+    void run();
 
 public:
     vector<ComputerPtr> theNet{};
+    NAT nat{};
     mutable bool halting{false};
 };
 

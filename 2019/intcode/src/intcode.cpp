@@ -99,7 +99,7 @@ pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(optional<long> i
         if (executor == instructionSet.end())
             break;
         //cerr << "Inside runner before passing to executor" << endl;
-        if (pausable && instrCode == OpcodeInstruction::input && interrupt)
+        if (instrCode == OpcodeInstruction::input && interrupt)
             return {-4242, Paused};
         executor->second->passValue(cache);
         executor->second->setModes(parameterMode);

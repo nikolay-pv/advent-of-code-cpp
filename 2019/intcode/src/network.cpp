@@ -6,7 +6,6 @@ Computer::Computer(long addr, std::vector<long>& mem, Network* dm)
     : netAdress{std::move(addr)}, domain{dm}
 {
     netInterfaceController = IntCodeComputer{"", mem};
-    netInterfaceController.pausable = true;
 
     auto input = [&]() -> long
         {
@@ -25,12 +24,12 @@ Computer::Computer(long addr, std::vector<long>& mem, Network* dm)
             if (this->state == State::Idle)
             {
                 this->currentlyReading = this->packetsToProcess.front();
-                this->packetsToProcess.pop();
                 res = this->currentlyReading.first;
                 this->state = State::xRead;
             } else {
                 res = this->currentlyReading.second;
                 this->state = State::Idle;
+                this->packetsToProcess.pop();
             }
             return res;
         };
@@ -64,6 +63,14 @@ void Computer::run()
     }
 }
 
+bool NAT::monitorIsIdle(const vector<ComputerPtr>& theNet) const
+{
+    for(const auto& c : theNet)
+        if (!c->packetsToProcess.empty())
+            return false;
+    return true;
+}
+
 Network::Network(long num, std::vector<long>& mem)
 {
     for(long addr{0}; addr != num; ++addr)
@@ -79,25 +86,33 @@ void Network::halt() const
     halting = true;
 }
 
-void Network::run() const
+void Network::run()
 {
     while (!halting)
     {
         for(long i = 0; i != theNet.size(); ++i)
-        {
-            cout << "Running on computer " << i << "\r";
-            cout.flush();
             theNet[i]->run();
+        if (nat.recPacket && nat.monitorIsIdle(theNet))
+        {
+            cout << "The network is idle pass (x, y) = (" << nat.idlePckt.first << ", " << nat.idlePckt.second << ") to [0]" << endl;
+            sendPacket(0, nat.idlePckt);
+            if (nat.lastPassedY == nat.idlePckt.second)
+            {
+                cout << "Part2: Passing the same Y twice in a row " << nat.lastPassedY << endl;
+                halt();
+            }
+            nat.lastPassedY = nat.idlePckt.second;
         }
     }
 }
 
-void Network::sendPacket(long dst, packet pckt) const
+void Network::sendPacket(long dst, packet pckt)
 {
     if (dst == 255)
     {
-        cout << "Part1: Recieved packet to adress 255, the Y is " << pckt.second << endl << "Halting." << endl;
-        halt();
+        cout << "Part1: Recieved packet to adress 255, the Y is " << pckt.second << endl;
+        nat.idlePckt = pckt;
+        nat.recPacket = true;
         return;
     }
     assert(dst >= 0 && dst < 50 && "There must be 50 computers in the network so far.");
