@@ -44,7 +44,7 @@ public:
     virtual void getValue(optional<long>& val) { return; };
     virtual void setModes(vector<ParamMode> val) { modes = std::move(val); };
     virtual long paramsLength() = 0;
-    virtual void execute(vector<long>::iterator begginingOfInstruction,
+    virtual void execute(long begginingOfInstruction,
                          vector<long>& computerMemory) = 0;
     virtual ~CmdExecutor() = default;
 };
@@ -64,6 +64,7 @@ struct IntCodeComputer
 
     // config and states
     bool pausable{false};
+    bool interrupt{false};
     enum State {
         Running,
         Paused,
@@ -74,7 +75,7 @@ struct IntCodeComputer
     string name{};
 
     vector<long> memory{};
-    std::vector<long>::iterator instructionPos{};
+    long instructionPos{};
     list<long> cache{};
 
     map<OpcodeInstruction, CmdExecutorPtr> instructionSet{};
@@ -102,12 +103,12 @@ private:
 // Utilities
 ParamMode getParamMode(vector<ParamMode>& modes, long offset);
 
-long getParam(vector<long>::iterator begginingOfInstruction,
+long getParam(long begginingOfInstruction,
               vector<long>& computerMemory,
               long offset,
               ParamMode mode);
 
-long getOutputParam(vector<long>::iterator begginingOfInstruction,
+long getOutputParam(long begginingOfInstruction,
               vector<long>& computerMemory,
               long offset,
               ParamMode mode);
@@ -118,7 +119,7 @@ class Sum : public CmdExecutor
 {
 public:
     long paramsLength() override;
-    void execute(vector<long>::iterator begginingOfInstruction,
+    void execute(long begginingOfInstruction,
                  vector<long>& computerMemory) override;
 };
 
@@ -126,7 +127,7 @@ class Multiply : public CmdExecutor
 {
 public:
     long paramsLength() override;
-    void execute(vector<long>::iterator begginingOfInstruction,
+    void execute(long begginingOfInstruction,
                  vector<long>& computerMemory) override;
 };
 
@@ -139,7 +140,7 @@ public:
     void removeCallBack();
     void passValue(list<long>& vals) override;
     long paramsLength() override;
-    void execute(vector<long>::iterator begginingOfInstruction,
+    void execute(long begginingOfInstruction,
                  vector<long>& computerMemory) override;
 };
 
@@ -153,7 +154,7 @@ public:
     void removeCallBack();
     void getValue(optional<long>& val) override;
     long paramsLength() override;
-    void execute(vector<long>::iterator begginingOfInstruction,
+    void execute(long begginingOfInstruction,
                  vector<long>& computerMemory) override;
 };
 
@@ -162,7 +163,7 @@ class Jump_if_true : public CmdExecutor
     long dynamicLength = 3;
 public:
     long paramsLength() override;
-    void execute(vector<long>::iterator begginingOfInstruction,
+    void execute(long begginingOfInstruction,
                  vector<long>& computerMemory) override;
 };
 
@@ -171,7 +172,7 @@ class Jump_if_false : public CmdExecutor
     long dynamicLength = 3;
 public:
     long paramsLength() override;
-    void execute(vector<long>::iterator begginingOfInstruction,
+    void execute(long begginingOfInstruction,
                  vector<long>& computerMemory) override;
 };
 
@@ -179,7 +180,7 @@ class Less_than : public CmdExecutor
 {
 public:
     long paramsLength() override;
-    void execute(vector<long>::iterator begginingOfInstruction,
+    void execute(long begginingOfInstruction,
                  vector<long>& computerMemory) override;
 };
 
@@ -187,7 +188,7 @@ class Equals : public CmdExecutor
 {
 public:
     long paramsLength() override;
-    void execute(vector<long>::iterator begginingOfInstruction,
+    void execute(long begginingOfInstruction,
                  vector<long>& computerMemory) override;
 };
 
@@ -195,7 +196,7 @@ class Rel_base_offset : public CmdExecutor
 {
 public:
     long paramsLength() override;
-    void execute(vector<long>::iterator begginingOfInstruction,
+    void execute(long begginingOfInstruction,
                  vector<long>& computerMemory) override;
 };
 
@@ -203,7 +204,7 @@ class Halt : public CmdExecutor
 {
 public:
     long paramsLength() override;
-    void execute(vector<long>::iterator, vector<long>&) override;
+    void execute(long, vector<long>&) override;
 };
 
 

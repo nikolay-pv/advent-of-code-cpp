@@ -6,8 +6,9 @@
 //#include "arcade_cabinet.hpp"
 //#include "repair_droid.hpp"
 //#include "ascii.hpp"
-#include "tractor_beam.hpp"
-#include "springdroid.hpp"
+//#include "tractor_beam.hpp"
+//#include "springdroid.hpp"
+#include "network.hpp"
 
 using namespace std;
 
@@ -25,8 +26,8 @@ int main()
         char separator;
         cin >> separator;
     }
-    IntCodeComputer computer{"", memory};
-    computer.pausable = true;
+    //IntCodeComputer computer{"", memory};
+    //computer.pausable = true;
 
     //PaintingRobot robot{computer};
     //const long painted{robot.paint()};
@@ -64,11 +65,19 @@ int main()
     //// Part 2
     //cout << "Part 2\n";
     //beam.findSquarePosition();
-    spring::SpringDroid kengaroo{computer};
+    // Day 21
+    //spring::SpringDroid kengaroo{computer};
     // Part 1
-    cout << "Part 1\n";
-    kengaroo.run();
+    //cout << "Part 1\n";
+    //kengaroo.run();
     // Part 2
+    //cout << "Part 2\n";
+    //beam.findSquarePosition();
+    // Day 23
+    const long numOfNodes = 50;
+    net::Network lan{numOfNodes, memory};
+    cout << "Part 1\n";
+    lan.run();
     cout << "Part 2\n";
     //beam.findSquarePosition();
     return 0;

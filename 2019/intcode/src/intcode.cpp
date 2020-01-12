@@ -45,7 +45,7 @@ IntCodeComputer::IntCodeComputer(vector<long> mem)
     : memory{std::move(mem)}
 {
     halting = false;
-    instructionPos = memory.begin();
+    instructionPos = 0;
     is.memory = memory;
     setUpInstructions(this->instructionSet);
 };
@@ -58,9 +58,9 @@ IntCodeComputer::IntCodeComputer(string nn, vector<long> mem)
 void IntCodeComputer::resetToInit()
 {
     halting = false;
-    for(int i = 0; i != is.memory.size(); ++i)
+    for(long i = 0; i != is.memory.size(); ++i)
         memory[i] = is.memory[i];
-    instructionPos = memory.begin();
+    instructionPos = 0;
 };
 
 
@@ -87,7 +87,7 @@ pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(optional<long> i
     if (input != nullopt)
         cache.push_back(input.value());
     //cerrPrintMemory();
-    long offset = 0;
+    //long offset = 0;
     optional<long> result = nullopt;
     while(!halting)
     {
@@ -99,6 +99,8 @@ pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(optional<long> i
         if (executor == instructionSet.end())
             break;
         //cerr << "Inside runner before passing to executor" << endl;
+        if (pausable && instrCode == OpcodeInstruction::input && interrupt)
+            return {-4242, Paused};
         executor->second->passValue(cache);
         executor->second->setModes(parameterMode);
         executor->second->execute(instructionPos, memory);
@@ -123,7 +125,7 @@ pair<long, IntCodeComputer::State> IntCodeComputer::runningLoop(optional<long> i
 
 optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
 {
-    string tmp = to_string(*instructionPos);
+    string tmp = to_string(memory[instructionPos]);
     //cerr << "Opcode candidate " << tmp << endl;
     parameterMode.clear();
     // everything but last 2 digits
@@ -139,7 +141,7 @@ optional<OpcodeInstruction> IntCodeComputer::getCurrentOpcode()
         //cerr << "Log: setting the mode to " << parameterMode << endl;
     }
     // last 2 digits
-    const long code = tmp.length() > 2 ? stol(tmp.substr(tmp.length() - 2, 2)) : *instructionPos;
+    const long code = tmp.length() > 2 ? stol(tmp.substr(tmp.length() - 2, 2)) : memory[instructionPos];
     //cerr << "Log: try to cast the code " << code << endl;
     return castToOpcode(code);
 }
@@ -154,12 +156,12 @@ ParamMode getParamMode(vector<ParamMode>& modes, long offset)
     return modes[offset - 1];
 }
 
-long getParam(vector<long>::iterator begginingOfInstruction,
+long getParam(long begginingOfInstruction,
               vector<long>& computerMemory,
               long offset,
               ParamMode mode)
 {
-    const long val = *(begginingOfInstruction + offset);
+    const long val = computerMemory[begginingOfInstruction + offset];
     switch (mode)
     {
         case Positional:
@@ -188,12 +190,12 @@ long getParam(vector<long>::iterator begginingOfInstruction,
     }
 }
 
-long getOutputParam(vector<long>::iterator begginingOfInstruction,
+long getOutputParam(long begginingOfInstruction,
               vector<long>& computerMemory,
               long offset,
               ParamMode mode)
 {
-    const long val = *(begginingOfInstruction + offset);
+    const long val = computerMemory[begginingOfInstruction + offset];
     switch (mode)
     {
         case Positional:
@@ -223,7 +225,7 @@ long getOutputParam(vector<long>::iterator begginingOfInstruction,
 // CmdExecutors
 // Sum
 long Sum::paramsLength() { return 4; }
-void Sum::execute(vector<long>::iterator begginingOfInstruction,
+void Sum::execute(long begginingOfInstruction,
                      vector<long>& computerMemory)
 {
     long offset = 1;
@@ -236,12 +238,17 @@ void Sum::execute(vector<long>::iterator begginingOfInstruction,
 #ifdef INTCODEDEBUG
     cerr << "Sum Mode: " << modes << " [" << dst << "] = " << leftVal << " + " << rightVal << endl;
 #endif
+    //if (dst > computerMemory.size())
+    //{
+    //    cerr << "the size is " << computerMemory.size() << " dst is " << dst << endl;
+    //    cerr << "Sum Mode: " << modes << " [" << dst << "] = " << leftVal << " + " << rightVal << endl;
+    //}
     computerMemory[dst] = leftVal + rightVal;
 }
 
 // Multiply
 long Multiply::paramsLength() { return 4; }
-void Multiply::execute(vector<long>::iterator begginingOfInstruction,
+void Multiply::execute(long begginingOfInstruction,
                      vector<long>& computerMemory)
 {
     long offset = 1;
@@ -295,7 +302,7 @@ void Input::passValue(list<long>& vals)
     }
 };
 long Input::paramsLength() { return 2; }
-void Input::execute(vector<long>::iterator begginingOfInstruction,
+void Input::execute(long begginingOfInstruction,
                      vector<long>& computerMemory)
 {
     const long offset = 1;
@@ -329,7 +336,7 @@ void Output::getValue(optional<long>& val)
     val = output;
 };
 long Output::paramsLength() { return 2; }
-void Output::execute(vector<long>::iterator begginingOfInstruction,
+void Output::execute(long begginingOfInstruction,
                      vector<long>& computerMemory)
 {
     const long offset = 1;
@@ -342,7 +349,7 @@ void Output::execute(vector<long>::iterator begginingOfInstruction,
 
 // Jump_if_true
 long Jump_if_true::paramsLength() { return dynamicLength; }
-void Jump_if_true::execute(vector<long>::iterator begginingOfInstruction,
+void Jump_if_true::execute(long begginingOfInstruction,
                      vector<long>& computerMemory)
 {
     dynamicLength = 3;
@@ -352,9 +359,9 @@ void Jump_if_true::execute(vector<long>::iterator begginingOfInstruction,
     {
         offset = 2;
         const long newpointer = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
-        dynamicLength = newpointer - (begginingOfInstruction - computerMemory.begin());
+        dynamicLength = newpointer - begginingOfInstruction;
 #ifdef INTCODEDEBUG
-        cerr << "JiT NewPointer " << newpointer << " diff " << (begginingOfInstruction - computerMemory.begin()) << endl;
+        cerr << "JiT NewPointer " << newpointer << " diff " << begginingOfInstruction << endl;
 #endif
     }
 #ifdef INTCODEDEBUG
@@ -364,7 +371,7 @@ void Jump_if_true::execute(vector<long>::iterator begginingOfInstruction,
 
 // Jump_if_false
 long Jump_if_false::paramsLength() { return dynamicLength; }
-void Jump_if_false::execute(vector<long>::iterator begginingOfInstruction,
+void Jump_if_false::execute(long begginingOfInstruction,
                      vector<long>& computerMemory)
 {
     dynamicLength = 3;
@@ -374,9 +381,9 @@ void Jump_if_false::execute(vector<long>::iterator begginingOfInstruction,
     {
         offset = 2;
         const long newpointer = getParam(begginingOfInstruction, computerMemory, offset, getParamMode(modes, offset));
-        dynamicLength = newpointer - (begginingOfInstruction - computerMemory.begin());
+        dynamicLength = newpointer - begginingOfInstruction;
 #ifdef INTCODEDEBUG
-        cerr << "JiF NewPointer " << newpointer << " diff " << (begginingOfInstruction - computerMemory.begin()) << endl;
+        cerr << "JiF NewPointer " << newpointer << " diff " << begginingOfInstruction << endl;
 #endif
     }
 #ifdef INTCODEDEBUG
@@ -386,7 +393,7 @@ void Jump_if_false::execute(vector<long>::iterator begginingOfInstruction,
 
 // Less_than
 long Less_than::paramsLength() { return 4; }
-void Less_than::execute(vector<long>::iterator begginingOfInstruction,
+void Less_than::execute(long begginingOfInstruction,
                      vector<long>& computerMemory)
 {
     long offset = 1;
@@ -407,7 +414,7 @@ void Less_than::execute(vector<long>::iterator begginingOfInstruction,
 
 // Equals
 long Equals::paramsLength() { return 4; }
-void Equals::execute(vector<long>::iterator begginingOfInstruction,
+void Equals::execute(long begginingOfInstruction,
                      vector<long>& computerMemory)
 {
     long offset = 1;
@@ -427,7 +434,7 @@ void Equals::execute(vector<long>::iterator begginingOfInstruction,
 
 // Rel_base_offset
 long Rel_base_offset::paramsLength() { return 2; }
-void Rel_base_offset::execute(vector<long>::iterator begginingOfInstruction,
+void Rel_base_offset::execute(long begginingOfInstruction,
                      vector<long>& computerMemory)
 {
     long offset = 1;
@@ -441,7 +448,7 @@ void Rel_base_offset::execute(vector<long>::iterator begginingOfInstruction,
 
 //Halt
 long Halt::paramsLength() { return 0; }
-void Halt::execute(vector<long>::iterator, vector<long>&)
+void Halt::execute(long, vector<long>&)
 {
     IntCodeComputer::halt();
 #ifdef INTCODEDEBUG
