@@ -5,13 +5,13 @@
 //#include <valarray>
 //#include <map>
 #include <set>
-//#include <list>
+#include <list>
 //#include <list>
 //#include <memory>
 #include <cmath>
 #include <numeric>
 //#include <sstream>
-//#include <optional>
+#include <optional>
 #include <chrono>
 #include <thread>
 #include <bitset>
@@ -20,27 +20,55 @@
 using namespace std;
 
 constexpr long mapSize = 25;
+constexpr long mid = 12;
+
+const bitset<mapSize> leftEdge{"1000010000100001000010000"};
+const bitset<mapSize> topEdge{"1111100000000000000000000"};
+const bitset<mapSize> rightEdge{"0000100001000010000100001"};
+const bitset<mapSize> bottomEdge{"0000000000000000000011111"};
+const bitset<mapSize> allEdges{leftEdge | topEdge | rightEdge | bottomEdge};
+
+const bitset<mapSize> leftInternalEdge{"0000000000010000000000000"};
+const bitset<mapSize> topInternalEdge{"0000000100000000000000000"};
+const bitset<mapSize> rightInternalEdge{"0000000000000100000000000"};
+const bitset<mapSize> bottomInternalEdge{"0000000000000000010000000"};
+const bitset<mapSize> allInternalEdges{leftInternalEdge | topInternalEdge | rightInternalEdge | bottomInternalEdge};
 
 struct BitCmp{
     bool operator ()(const bitset<mapSize>& l, const bitset<mapSize>& r) const
     { return l.to_ulong() < r.to_ulong(); }
 };
+set<bitset<mapSize>, BitCmp> history{};
+
+
+struct Eris;
+using ErisPtr = shared_ptr<Eris>;
+list<ErisPtr> planet_system{};
 
 struct Eris
 {
+    Eris() = default;
     Eris(const string& input) : theMap{input.c_str(), mapSize, '.', '#'} { history.insert(theMap); }
 
     void printMap(bool goBack = false) const;
 
-    pair<long, long> countNeighbours(long i) const;
+    long countNeighbours(long i) const;
+    long countEmbeddedNeighbours(long i) const;
     bitset<mapSize> getNext() const;
     void runSimulation();
-
     unsigned long biodiversityRating() const;
+
+    // part 2
+    void calculateEmbeddedNext(optional<bool> goingdown = nullopt);
+    long long countBugs(optional<bool> goingdown = nullopt) const;
+    // recursive update
+    long long runEmbeddedSimulation(long times);
+
+    Eris* down{};
+    Eris* up{};
 
     bitset<mapSize> theMap;
     long time{};
-    set<bitset<mapSize>, BitCmp> history{};
 };
 
 std::ostream& operator<<(std::ostream& os, const Eris& obj)
@@ -61,9 +89,8 @@ void Eris::printMap(bool goBack) const
         cout << "\033[" << 5 << "A";
 }
 
-pair<long, long> Eris::countNeighbours(long i) const
+long Eris::countNeighbours(long i) const
 {
-    assert(!theMap.none());
     long bugs{};
     const array<long, 4> positions{i - 1, i + 1, i - 5, i + 5};
     for(auto idx : positions)
@@ -75,7 +102,7 @@ pair<long, long> Eris::countNeighbours(long i) const
         if (theMap[idx]) // bug
             ++bugs;
     }
-    return {bugs, 4 - bugs};
+    return bugs;
 }
 
 unsigned long Eris::biodiversityRating() const
@@ -91,7 +118,7 @@ bitset<mapSize> Eris::getNext() const
     bitset<mapSize> newMap{};
     for(long i = 0; i != mapSize; ++i)
     {
-        auto[bugs, empty] = countNeighbours(i);
+        const long bugs = countNeighbours(i);
         if (theMap[i] && bugs != 1) // bug
             newMap[i] = 0;
         else if (!theMap[i] && (bugs == 1 || bugs == 2)) // empty
@@ -102,10 +129,86 @@ bitset<mapSize> Eris::getNext() const
     return newMap;
 }
 
+
+// count embedded if at the edge
+long Eris::countEmbeddedNeighbours(long i) const
+{
+    bitset<mapSize> test{};
+    test[i] = 1;
+    long res{};
+    if (down && (allInternalEdges & test).any())
+    {
+        // down the level
+        if ((test & topInternalEdge).any())
+            res = (down->theMap & topEdge).count();
+        else if ((test & bottomInternalEdge).any())
+            res = (down->theMap & bottomEdge).count();
+        else if ((test & leftInternalEdge).any())
+            res = (down->theMap & leftEdge).count();
+        else if ((test & rightInternalEdge).any())
+            res = (down->theMap & rightEdge).count();
+    }
+    else if (up && (allEdges & test).any())
+    {
+        // up the level
+        if ((test & topEdge).any())
+            res += (up->theMap & topInternalEdge).count();
+        if ((test & bottomEdge).any())
+            res += (up->theMap & bottomInternalEdge).count();
+        if ((test & leftEdge).any())
+            res += (up->theMap & leftInternalEdge).count();
+        if ((test & rightEdge).any())
+            res += (up->theMap & rightInternalEdge).count();
+    }
+    return res;
+}
+
+void Eris::calculateEmbeddedNext(optional<bool> goingdown)
+{
+    bitset<mapSize> newMap{};
+    for(long i = 0; i != mapSize; ++i)
+    {
+        if (i == mid)
+            continue;
+        const long bugs = countNeighbours(i) + countEmbeddedNeighbours(i);
+        if (theMap[i] && bugs != 1) // bug
+            newMap[i] = 0;
+        else if (!theMap[i] && (bugs == 1 || bugs == 2)) // empty
+            newMap[i] = 1;
+        else
+            newMap[i] = theMap[i];
+    }
+    // recursive call
+    const bool godown = goingdown == nullopt || goingdown.value();
+    if (godown && (down || (theMap & allInternalEdges).count()))
+    {
+        if (!down)
+        {
+            auto n = make_shared<Eris>();
+            n->up = this;
+            down = n.get();
+            planet_system.push_back(n);
+        }
+        down->calculateEmbeddedNext(true);
+    }
+    //
+    const bool goup = goingdown == nullopt || !goingdown.value();
+    if (goup && (up || (theMap & allEdges).count()))
+    {
+        if (!up)
+        {
+            auto n = make_shared<Eris>();
+            n->down = this;
+            up = n.get();
+            planet_system.push_back(n);
+        }
+        up->calculateEmbeddedNext(false);
+    }
+    theMap = newMap;
+}
+
 void Eris::runSimulation()
 {
-    //long count = 4;
-    //while(count--)
     while(true)
     {
         auto newMap = getNext();
@@ -123,6 +226,31 @@ void Eris::runSimulation()
         printMap(true);
         this_thread::sleep_for(chrono::milliseconds(10));
     }
+}
+
+long long Eris::countBugs(optional<bool> goingdown) const
+{
+    long long answ = theMap.count();
+
+    const bool godown = goingdown == nullopt || goingdown.value();
+    if (godown && down)
+        answ += down->countBugs(true);
+
+    const bool goup = goingdown == nullopt || !goingdown.value();
+    if (goup && up)
+        answ += up->countBugs(false);
+
+    return answ;
+}
+
+long long Eris::runEmbeddedSimulation(long times)
+{
+    for(long count{}; count != times; ++count)
+        calculateEmbeddedNext();
+    auto answ{countBugs()};
+
+    cout << "Total amount of bugs after " << times << " iterations is " << answ << endl;
+    return answ;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,7 +275,7 @@ int main()
     //    bitset<mapSize> first{"#..#.####.###.###.##.##..", mapSize, '.', '#'};
     //    for(int i = 0; i != mapSize; ++i)
     //    {
-    //        auto[b,e] = test.countNeighbours(i);
+    //        const long b = test.countNeighbours(i);
     //        //cerr << "compare for " << i << " got " << b << " expected " << bugs[i] << endl;
     //        assert(b == bugs[i]);
     //        // test iteration
@@ -155,13 +283,30 @@ int main()
     //    }
     //}
 
+    //{
+    //    cout << "Test part 2\n";
+    //    Eris test{"....##..#.#..##..#..#...."};
+    //    const long times = 10;
+    //    const auto answ = test.runEmbeddedSimulation(times);
+    //    test.printMap();
+    //    test.down->printMap();
+    //    assert(answ == 99);
+    //}
+
     cout << "Part 1\n";
+    {
     Eris planet{input};
     planet.printMap();
     cout << "\nRun sim " << endl;
     planet.runSimulation();
-    //cout << "Part 2\n";
-
+    }
+    cout << "Part 2\n";
+    {
+    const long times = 200;
+    Eris planet{input};
+    const long answ = planet.runEmbeddedSimulation(times);
+    assert(1450 < answ);
+    }
     return 0;
 }
 
