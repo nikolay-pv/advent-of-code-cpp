@@ -1,0 +1,44 @@
+43
+south
+take boulder
+east
+take food ration
+west
+west
+take asterisk
+east
+north
+east
+take candy cane
+north
+east
+north
+take mug
+south
+west
+north
+take mutex
+west
+east
+north
+take prime number
+east
+west
+south
+south
+south
+east
+north
+take loom
+south
+east
+south
+west
+east
+east
+east
+drop candy cane
+drop loom
+drop food ration
+drop boulder
+north

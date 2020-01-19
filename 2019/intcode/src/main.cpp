@@ -1,4 +1,6 @@
 #include <iostream>
+#include <fstream>
+#include <sstream>
 #include <cmath>
 
 #include "intcode.hpp"
@@ -8,26 +10,32 @@
 //#include "ascii.hpp"
 //#include "tractor_beam.hpp"
 //#include "springdroid.hpp"
-#include "network.hpp"
+//#include "network.hpp"
+#include "santas_ship.hpp"
 
 using namespace std;
 
 int main()
 {
-    int N;
-    cin >> N;
+    ifstream source{"../input.txt", ios::in};
+    string input{};
+    getline(source, input);
+    const int N{stoi(input)};
 
+    getline(source, input);
+    istringstream is{input};
     vector<long> memory;
     for(int input = 0; input != N; ++input)
     {
         long val;
-        cin >> val;
+        is >> val;
         memory.push_back(val);
         char separator;
-        cin >> separator;
+        is >> separator;
     }
-    //IntCodeComputer computer{"", memory};
+    IntCodeComputer computer{"", memory};
     //computer.pausable = true;
+    //computer.interrupt = true;
 
     //PaintingRobot robot{computer};
     //const long painted{robot.paint()};
@@ -74,10 +82,14 @@ int main()
     //cout << "Part 2\n";
     //beam.findSquarePosition();
     // Day 23
-    const long numOfNodes = 50;
-    net::Network lan{numOfNodes, memory};
-    cout << "Part 1 & 2\n";
-    lan.run();
+    //const long numOfNodes = 50;
+    //net::Network lan{numOfNodes, memory};
+    //cout << "Part 1 & 2\n";
+    //lan.run();
+    // Day 25
+    santa::SantasShip ship{computer};
+    cout << "Part 1\n";
+    ship.fly();
     //beam.findSquarePosition();
     return 0;
 }

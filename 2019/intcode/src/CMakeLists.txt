@@ -9,6 +9,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE main.cpp intcode.hpp intcode.cpp
     tractor_beam.hpp tractor_beam.cpp
     springdroid.hpp springdroid.cpp
     network.hpp network.cpp
+    santas_ship.hpp santas_ship.cpp
     )
 
 # for tests
